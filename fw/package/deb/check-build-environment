@@ -1,0 +1,43 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/check-build-environment: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/check-build-environment" "sh/fatal.sh"
+fw_source "package/deb/check-build-environment" "sh/fw-exec.sh"
+fw_source "package/deb/check-build-environment" "sh/parse-args.sh"
+fw_source "package/deb/check-build-environment" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/check-build-environment" "$@"
+
+validate_args "package/deb/check-build-environment" "template" "template"
+
+which dpkg >/dev/null 2>/dev/null || {
+  echo "package/deb/check-build-environment: error: dpkg not installed" 1>&2
+  fatal "package/deb/check-build-environment"
+}
+
+eval `fw_exec "template/$template/load-config"`
+
+arch=`dpkg --print-installation-architecture`
+
+fw_exec "package/deb/check-for-packages" --arch "$arch" --depends "$FW_PACKAGE_BUILD_DEPENDS" --release yes >/dev/null

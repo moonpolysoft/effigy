@@ -1,0 +1,36 @@
+#! /usr/bin/env perl
+
+my $package = $ARGV[0];
+
+#---------------------------------------------------------------------
+#                            Package names                            
+# 
+# Package names must consist only of lower case letters
+# (a-z), digits (0-9), plus (+) and minus (-) signs, and
+# periods (.). They must be at least two characters long
+# and must start with an alphanumeric character.
+#
+# http://www.debian.org/doc/debian-policy/ch-controlfields.html
+#---------------------------------------------------------------------
+
+if ($package !~ m%^\w%)
+  {
+    die "package/deb/canonicalize-package: fatal: package '$package' does not start with an alphanumeric character.\n"
+  }
+
+if (length ($package) < 2)
+  {
+    die "package/deb/canonicalize-package: fatal: package '$package' needs to be at least length 2.\n"
+  }
+
+if ($package !~ m%^\w[\w\+\-\.]+$%)
+  {
+    my $orig = $package;
+
+    $package =~ s%[^\w\+\-\.]%\.%g;
+
+    warn "package/deb/canonicalize-package: warning: ", 
+         "adjusting nonconforming package '$orig' -> '$package'\n";
+  }
+
+print $package;

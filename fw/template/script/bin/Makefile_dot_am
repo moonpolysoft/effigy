@@ -1,0 +1,17 @@
+SUBDIRS = 
+
+noinst_DATA =				\
+  $(dist_bin_SCRIPTS:%=.%.script_ok)	\
+  $(bin_SCRIPTS:%=.%.script_ok)
+
+CLEANFILES =
+
+MAINTAINERCLEANFILES = 		\
+  Makefile.am			\
+  Makefile.in
+
+EXTRA_DIST =
+
+include $(top_srcdir)/fw/build/automake/check-shell.am
+include $(top_srcdir)/fw/build/automake/gnu-make-check.am
+include $(top_srcdir)/bin/Makefile.am.local

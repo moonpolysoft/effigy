@@ -1,0 +1,95 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "fw-build/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/fw-build/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "fw-build/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "fw-build/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "fw-build/init" "sh/fatal.sh"
+fw_source "fw-build/init" "sh/fw-exec.sh"
+fw_source "fw-build/init" "sh/parse-args.sh"
+fw_source "fw-build/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+fw_exec "build/automake/init" "$@" || fatal "fw-build/init"
+
+parse_args "fw-build/init" "$@"
+
+validate_args "fw-build/init" "build_type revision" "revision"
+
+topdir=`pwd`
+
+for dir in fw.local fw.local/build fw.local/build/NAME
+  do
+    mkdir "$dir" || fatal "fw-build/init"
+    fw_exec "revision/$revision/add-dir" "$dir" || fatal "fw-build/init"
+
+    for x in Makefile.am.local
+      do
+        fw_find "template/fw-build/$dir/$x" file
+        test -z "$file" && fatal "fw-build/init"
+        cp -f "$file" "$dir" || fatal "fw-build/init"
+        chmod +w "$dir/$x" || fatal "fw-build/init"
+      done
+
+    for x in bootstrap build init make-dist source-install release-ok
+      do
+        fw_find "template/fw-build/$dir/$x" file
+        test -z "$file" || {
+          cp -f "$file" "$dir" || fatal "fw-build/init"
+          chmod +w "$dir/$x" || fatal "fw-build/init"
+          perl -i                                       \
+               -pe "s/__BUILD_TYPE__/$build_type/g;"    \
+               "$dir/$x" || fatal "fw-build/init"
+        }
+      done
+
+    (
+      cd "$dir" &&                                              \
+      fw_exec "revision/$revision/add-files"			\
+	Makefile.am.local					\
+	bootstrap						\
+	build							\
+	init							\
+        make-dist                                               \
+	source-install						\
+	release-ok &&						\
+      fw_exec "revision/$revision/ignore-files"                 \
+        Makefile                                                \
+        Makefile.in                                             \
+        '.*.script_ok'                                          \
+    ) || fatal "fw-build/init"
+  done
+
+(
+  cd fw.local/build && fw_exec "revision/$revision/ignore-files" NAME
+) || fatal "fw-build/init"
+
+(
+  cd fw.local/build && mv NAME "$build_type" 
+) || fatal "fw-build/init"

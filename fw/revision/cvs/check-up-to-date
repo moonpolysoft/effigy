@@ -1,0 +1,22 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+prog=`which cvs 2>/dev/null`
+
+test -z "$prog" && {
+  echo "revision/cvs/check-up-to-date: fatal: cvs not installed" 1>&2
+  exit 1
+}
+
+cvs -n -q up > /dev/null || {
+  echo "revision/cvs/check-up-to-date: error: cvs invocation failed" 1>&2
+  fatal "revision/cvs/check-up-to-date"
+}
+
+if cvs -n -q up | grep -e '^[ACMR\?]'
+  then
+    exit 1
+  else
+    exit 0
+  fi

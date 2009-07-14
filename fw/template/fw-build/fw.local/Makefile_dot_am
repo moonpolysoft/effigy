@@ -1,0 +1,13 @@
+SUBDIRS = build
+
+CLEANFILES = 
+
+MAINTAINERCLEANFILES =	\
+  Makefile.am		\
+  Makefile.in
+
+EXTRA_DIST =
+
+include $(top_srcdir)/fw/build/automake/check-shell.am
+include $(top_srcdir)/fw/build/automake/gnu-make-check.am
+include $(top_srcdir)/fw.local/Makefile.am.local

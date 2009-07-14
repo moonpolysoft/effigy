@@ -1,0 +1,18 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+cvs -n -q up "$@" >/dev/null 2>/dev/null || exit 1
+
+files=`
+  cvs -n -q up "$@" 2>&1 |                                              \
+  perl -ne 'chomp; 
+            (m/warning: \140(.*?)\047 was lost$/ ||
+             m/warning: new-born \140?(.*?)\047? has disappeared$/) && do
+              {
+                my $x = $1;
+                $x =~ s/(\s)/\134$1/g;
+                print "$x ";
+              }'`
+
+test -z "$files" || cvs -Q remove $files

@@ -1,0 +1,83 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                          make-pre-remove                           
+# 
+# rewrite package hooks to integrate with erlrc.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "erlang/make-pre-remove: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/make-pre-remove" "sh/fw-exec.sh"
+fw_source "erlang/make-pre-remove" "sh/parse-args.sh"
+fw_source "erlang/make-pre-remove" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "erlang/make-pre-remove" "$@"
+
+validate_args "erlang/make-pre-remove" "destdir libexecdir package" "package"
+
+test "x$erlrc" = x0 || {
+  eval `fw_exec "template/erlang/load-config"`
+  
+  hookdir="${libexecdir}/fw/$FW_PACKAGE_NAME-$FW_PACKAGE_VERSION"
+  
+  test -d "${destdir}/${hookdir}" || fatal "erlang/make-pre-remove"
+
+  test -x "${destdir}/${hookdir}/pre-remove" &&                 \
+  mv "${destdir}/${hookdir}/pre-remove"                         \
+     "${destdir}/${hookdir}/pre-remove.orig"
+  
+  fw_exec "package/$package/make-hook" --hook pre-remove          \
+    --preamble "
+TMPDIR=\${TMPDIR-\"/tmp\"}
+
+if which md5sum >/dev/null 2>/dev/null
+  then
+    md5sum=md5sum
+  else
+    md5sum=echo
+fi
+  
+if test -x \"${hookdir}/post-remove.orig\" &&                   \
+   test \`\$md5sum \"${hookdir}/post-remove.orig\" |            \
+         cut -f1 -d' '\` != 638ac0310ac8cd76eeaadb8d9b18a345
+  then
+    cp -f \"${hookdir}/post-remove.orig\" \"\${TMPDIR}\"/.$FW_PACKAGE_NAME.$FW_PACKAGE_VERSION.post-remove.orig
+  fi
+
+if test -x \"${hookdir}/pre-remove.orig\"
+  then
+    set -e
+    \"${hookdir}/pre-remove.orig\" \"\$@\" 
+    set +e
+  fi
+"                                                               \
+    --remove "
+    which erlrc-stop >/dev/null 2>/dev/null
+
+    test \$? -ne 0 || \
+    erlrc-stop \"$FW_PACKAGE_NAME\" \"$FW_PACKAGE_VERSION\" || \
+    exit 1
+" > "${destdir}/${hookdir}/pre-remove" &&                       \
+  chmod +x "${destdir}/${hookdir}/pre-remove"
+}

@@ -1,0 +1,165 @@
+#! /usr/bin/perl
+
+use strict;
+
+use IO::Pipe;
+use POSIX ":sys_wait_h";
+
+#---------------------------------------------------------------------
+#                              proctalk                               
+# 
+# Fork a process and talk to it over a pipe pair.
+#---------------------------------------------------------------------
+
+sub proctalk ($$)
+  {
+    my ($parent_code, $child_code) = @_;
+
+    my $par_to_child = new IO::Pipe;
+    my $child_to_par = new IO::Pipe;
+
+    my $pid;
+
+    if ($pid = fork ())
+      {
+        # parent
+
+        $par_to_child->writer ();
+        $child_to_par->reader ();
+
+        $parent_code-> ($child_to_par, $par_to_child);
+
+        undef $par_to_child;
+        undef $child_to_par;
+
+        waitpid ($pid, 0);
+
+        die "$0: fatal: subprocess failed" if $?;
+      }
+    else
+      {
+        # child
+
+        $par_to_child->reader ();
+        $child_to_par->writer ();
+
+        $child_code-> ($par_to_child, $child_to_par);
+
+        die "$0: fatal: child_code failed to exit";
+      }
+  }
+
+#---------------------------------------------------------------------
+#                         check_for_packages                          
+# 
+# Check for the (installed) packages which correspond to the
+# build dependencies.
+#---------------------------------------------------------------------
+
+sub check_for_packages ($$$)
+  {
+    my ($arch, $depends, $package_type) = @_;
+
+    my @packages;
+
+    proctalk (
+      sub 
+        {
+          my ($readfh, $writefh) = @_;
+
+          @packages = map { chomp; $_ } <$readfh>;
+        },
+      sub
+        {
+          my ($readfh, $writefh) = @_;
+
+          close STDIN;
+          open STDIN, "<&", $readfh or die "$0: fatal: can't dup STDIN: $!";
+
+          close STDOUT;
+          open STDOUT, ">&", $writefh or die "$0: fatal: can't dup STDOUT: $!";
+
+          close STDERR unless $ENV{"FW_TRACE"};
+
+          exec ("fw-exec",
+                "package/$package_type/check-for-packages",
+                "--arch",
+                "$arch",
+                "--depends",
+                "$depends",
+                "--release",
+                "yes")
+            or die "$0: fatal: exec failed: $!";
+        }
+    );
+
+    return \@packages;
+  }
+
+#---------------------------------------------------------------------
+#                          find_pc_files                           
+# 
+# Find all the .pc files in a given set of (installed) packages.
+#---------------------------------------------------------------------
+
+sub find_pc_files ($$)
+  {
+    my ($package_type, $packages) = @_;
+
+    my %pc_filez;
+
+    proctalk (
+      sub 
+        {
+          my ($readfh, $writefh) = @_;
+
+          foreach my $p (@$packages)
+            {
+              print $writefh "$p\n";
+            }
+          $writefh->close ();
+
+          while (defined ($_ = <$readfh>))
+            {
+              chomp;
+
+              next unless m%/([^/]+)\.pc$%;
+
+              $pc_filez{$1} = 1;
+            }
+        },
+      sub
+        {
+          my ($readfh, $writefh) = @_;
+
+          close STDIN;
+          open STDIN, "<&", $readfh or die "$0: fatal: can't dup STDIN: $!";
+
+          close STDOUT;
+          open STDOUT, ">&", $writefh or die "$0: fatal: can't dup STDOUT: $!";
+
+          close STDERR unless $ENV{"FW_TRACE"};
+
+          exec "xargs", 
+               "fw-exec", 
+               "package/$package_type/list-files"
+            or die "$0: fatal: exec failed: $!";
+        }
+    );
+
+    return keys %pc_filez;
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+my $usage = "package/check-for-pkgconfig-packages: fatal: usage: $0 arch depends package_type\n";
+
+my $arch = $ARGV[0] or die $usage;
+my $depends = $ARGV[1] or die $usage;
+my $package_type = $ARGV[2] or die $usage;
+
+my $packages = check_for_packages ($arch, $depends, $package_type);
+
+print join " ", find_pc_files ($package_type, $packages);

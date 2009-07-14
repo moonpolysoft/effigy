@@ -1,0 +1,54 @@
+erlappdir="@ERLAPPDIR@"
+erlappsrcdir="$(erlappdir)/src"
+erlappebindir="$(erlappdir)/ebin"
+erlappprivdir="$(erlappdir)/priv"
+erlappincludedir="$(erlappdir)/include"
+erldocdir="@ERLDOCDIR@"
+
+SUFFIXES = .beam .erl .P .E .S
+
+FW_ERLCFLAGS = +debug_info -pa "$(FW_ROOT)/share/fw/template/erlang/" -pa "$(FW_ROOT)/share/fw.local/template/erlang" -pa "$(top_srcdir)/fw/template/erlang/" -pa "$(top_srcdir)/fw.local/template/erlang" -pa ../src -I ../src +'{ parse_transform, vsn_trans }' +"{ fw_package_version, '@FW_PACKAGE_VERSION@' }" +'{ parse_transform, oldrecord_trans }' @FW_EUNIT_ERLCFLAGS@ @ERLCFLAGS@
+
+ERLCFLAGS ?= $(FW_ERLCFLAGS)
+
+DIALYZERFLAGS := $(DIALYZERFLAGS)
+
+# put an overly broad dependency on .hrl for now, 
+# which will cause some spurious extra compiles
+# TODO: depgen for erlang
+
+%.beam: %.erl $(wildcard *.hrl)
+	erlc ${ERLCFLAGS} ${$*_ERLCFLAGS} $<
+
+%.P: %.erl $(wildcard *.hrl)
+	erlc +"'P'" ${ERLCFLAGS} ${$*_ERLCFLAGS} $<
+
+%.E: %.erl $(wildcard *.hrl)
+	erlc +"'E'" ${ERLCFLAGS} ${$*_ERLCFLAGS} $<
+
+%.S: %.erl $(wildcard *.hrl)
+	erlc +"'S'" ${ERLCFLAGS} ${$*_ERLCFLAGS} $<
+
+.%.beam_ok: %.beam
+	dialyzer ${DIALYZERFLAGS} ${$*_DIALYZERFLAGS} -c $*.beam
+	touch $@
+
+.%.erl_ok: %.erl
+	dialyzer ${DIALYZERFLAGS} ${$*_DIALYZERFLAGS} -c $*.erl
+	touch $@
+
+.PHONY: check-script-escript-%
+check-script-escript-%:
+	escript -s $*
+
+.dialyzer_ok: $(wildcard *.erl)
+	dialyzer ${DIALYZERFLAGS} --src -c .
+	touch $@
+
+CLEANFILES +=			\
+  $(wildcard *.P)		\
+  $(wildcard *.beam)		\
+  $(wildcard .*.beam_ok)	\
+  $(wildcard .*.erl_ok)		\
+  .dialyzer_ok			\
+  erl_crash.dump

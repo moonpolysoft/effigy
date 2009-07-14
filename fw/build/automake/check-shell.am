@@ -1,0 +1,54 @@
+find_shell = $(shell perl -ne 'if (m%\043!\s*/usr/bin/env\s*([^/]+)%) { print $$1; } elsif (m%\043!\s*\S*?/([^/\s]+)\s*$$%) { print $$1; }; exit' $(1))
+
+.PHONY: check-script-python-%
+check-script-python-%:
+	python -c "import sys; filename = sys.argv[1]; file = open(filename).read (); compile(file, 'test', 'exec')" "$*"
+
+.PHONY: check-script-perl-%
+check-script-perl-%:
+	perl -cw $*
+
+.PHONY: check-script-sh-%
+check-script-sh-%:
+	@CHECK_SHELL@ -n $*
+
+.PHONY: check-script-bash-%
+check-script-bash-%:
+	bash -n $*
+
+.PHONY: check-script-csh-%
+check-script-csh-%:
+	csh -n $*
+
+.PHONY: check-script-ksh-%
+check-script-ksh-%:
+	ksh -n $*
+
+.PHONY: check-script-tcsh-%
+check-script-tcsh-%:
+	tcsh -n $*
+
+.PHONY: check-script-zsh-%
+check-script-zsh-%:
+	zsh -n $*
+
+.PHONY: unknown-script-%
+unknown-script-%:
+	@echo "warning: cant check $* : unknown interpreter '$(shell head -1 $*)'" 1>&2
+	@echo "warning: try defining make target 'check-script-$(call find_shell,$*)-%'" 1>&2
+	@echo "warning: to instruct make on how to check scripts of type $(call find_shell,$*)" 1>&2
+
+.%.script_ok: %
+	@$(MAKE) -q -s check-script-$(call find_shell,$<)-$< 2>/dev/null ; \
+                                                                           \
+        if test $$? = 2 ;                                                  \
+          then                                                             \
+            $(MAKE) --no-print-directory unknown-script-$< ;               \
+          else                                                             \
+            $(MAKE) -s --no-print-directory                                \
+              check-script-$(call find_shell,$<)-$< &&                     \
+            touch $@ ;                                                     \
+          fi
+
+CLEANFILES +=					\
+  $(wildcard .*.script_ok)

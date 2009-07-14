@@ -1,0 +1,76 @@
+SUBDIRS = fw-pkgin
+
+ACLOCAL_AMFLAGS = @FW_ACLOCAL_ARGS@
+
+.PHONY: package-%
+package-%: all
+	./create-package --build automake --package "$*" --revision "@FW_REVISION_TYPE@" --release no --ldd "@FW_LDD@" --ldd_args "@FW_LDD_ARGS@" --libexecdir "$(libexecdir)" @FW_BUILD_AUTOMAKE_CREATE_PACKAGE_EXTRA_ARGS@
+
+.PHONY: release-%
+release-%: all
+	./create-package --build automake --package "$*" --revision "@FW_REVISION_TYPE@" --release yes --ldd "@FW_LDD@" --ldd_args "@FW_LDD_ARGS@" --libexecdir "$(libexecdir)" @FW_BUILD_AUTOMAKE_CREATE_PACKAGE_EXTRA_ARGS@
+
+.PHONY: package
+.PHONY: release
+
+if FW_HAVE_NATIVE_PACKAGE_TYPE
+package: package-@FW_NATIVE_PACKAGE_TYPE@
+
+release: release-@FW_NATIVE_PACKAGE_TYPE@
+endif
+
+ac-init.generated: fw-pkgin/config
+	@./bootstrap --revision "@FW_REVISION_TYPE@"
+
+create-package: bootstrap
+	@./bootstrap --baseonly yes --revision "@FW_REVISION_TYPE@"
+
+noinst_DATA =			\
+  ac-init.generated		\
+  create-package
+
+CLEANFILES =
+
+maintainer-clean-local:
+	@test ! -d fw-pkgtmp || rm -rf fw-pkgtmp
+	@test ! -d autom4te.cache || rm -rf autom4te.cache
+
+MAINTAINERCLEANFILES =		\
+  Makefile.am			\
+  Makefile.in			\
+  ac-init.generated		\
+  aclocal.m4			\
+  build				\
+  config.guess			\
+  config.sub			\
+  configure			\
+  configure.ac			\
+  create-package		\
+  depcomp			\
+  fw				\
+  install-sh			\
+  missing			\
+  mkinstalldirs			\
+  $(wildcard *.tar.bz)		\
+  $(wildcard *.tar.gz)		\
+  $(wildcard *.tbz)		\
+  $(wildcard *.tgz)
+
+EXTRA_DIST =			\
+  Makefile.am.local		\
+  bootstrap			\
+  configure.ac.local
+
+dist-hook:
+	rm -rf "$(distdir)/fw"
+	mkdir "$(distdir)/fw"
+	find -L fw -mindepth 1 -print | cpio -pd "$(distdir)"
+	mkdir "$(distdir)/fw/bin"
+	cp `which fw-bootstrap` "$(distdir)/fw/bin"
+	cp `which fw-exec` "$(distdir)/fw/bin"
+	cp `which fw-init` "$(distdir)/fw/bin"
+	cp `which fw-package` "$(distdir)/fw/bin"
+
+include $(top_srcdir)/fw/build/automake/check-shell.am
+include $(top_srcdir)/fw/build/automake/gnu-make-check.am
+include $(top_srcdir)/Makefile.am.local

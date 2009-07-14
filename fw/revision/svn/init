@@ -1,0 +1,81 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/svn/init: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/svn/init" "sh/fatal.sh"
+fw_source "revision/svn/init" "sh/parse-args.sh"
+fw_source "revision/svn/init" "sh/validate-args.sh"
+
+svn_mkdir_p () \
+  {
+    local base
+
+    svn list "$1" > /dev/null 2>/dev/null || {
+      base=`echo "$1" | perl -pe 'chomp; s%/+$%%; s%/[^/]+$%/%;'`
+
+      test "$base" != "$1" &&                                           \
+      svn_mkdir_p $base &&                                              \
+      echo "revision/svn/init: warning: svn mkdir '$1'" 1>&2 &&         \
+      svn mkdir "$1" -m 'created by framework'
+    } 
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/svn/init" "$@"
+
+validate_args "revision/svn/init" "name svn_project_path svn_tag_root" ""
+
+perl -e 'exit $ARGV[0] !~ /$ARGV[1]/' "$svn_project_path" "$name" || {
+  echo "revision/svn/init: warning: '$svn_project_path' does not contain '$name'" 1>&2
+  if test -z "$force_svn_path"
+    then
+      echo "revision/svn/init: warning: this is probably an error" 1>&2
+      echo "revision/svn/init: warning: if you really want to do use the following argument: --force_svn_path yes" 1>&2
+      fatal "revision/svn/init"
+    else
+      echo "revision/svn/init: warning: allowing because --force_svn_path set" 1>&2
+    fi
+}
+
+perl -e 'exit $ARGV[0] !~ /$ARGV[1]/' "$svn_tag_root" "$name" || {
+  echo "revision/svn/init: warning: '$svn_tag_root' does not contain '$name'" 1>&2
+  if test -z "$force_svn_path"
+    then
+      echo "revision/svn/init: warning: this is probably an error" 1>&2
+      echo "revision/svn/init: warning: if you really want to do use the following argument: --force_svn_path yes" 1>&2
+      fatal "revision/svn/init"
+    else
+      echo "revision/svn/init: warning: allowing because --force_svn_path set" 1>&2
+    fi
+}
+
+svn_mkdir_p "$svn_project_path" || {
+  echo "revision/svn/init: svn_mkdir_p '$svn_project_path' failed: check repository url for validity" 1>&2
+  fatal "revision/svn/init"
+}
+svn_mkdir_p "$svn_tag_root" || {
+  echo "revision/svn/init: svn_mkdir_p '$svn_tag_root' failed: check repository url for validity" 1>&2
+  fatal "revision/svn/init"
+}
+mkdir "$name" || fatal "revision/svn/init"
+cd "$name" || fatal "revision/svn/init"
+svn checkout "$svn_project_path" .

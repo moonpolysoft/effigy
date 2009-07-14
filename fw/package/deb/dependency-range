@@ -1,0 +1,82 @@
+#! /usr/bin/perl
+
+use File::Basename;
+
+BEGIN {
+  unshift @INC, dirname ($0);
+};
+
+use FwDebPackage;
+use strict;
+
+#---------------------------------------------------------------------
+#                        parse_depends_range                           
+# 
+# Parse FW_PACKAGE_DEPENDENCIES, which is in debian binary
+# dependency format.  Returns the dependencies along with 
+# implied range dependencies if otherwise unspecified.
+#---------------------------------------------------------------------
+
+sub parse_depends_range ($$)
+  {
+    my ($state, $depends) = @_;
+
+# libc6 (>= 2.2.1), exim | mail-transport-agent
+
+    my @pkgspecs = split /,\s*/, $depends;
+
+    my $firstspec = 1;
+  SPEC:  foreach my $spec (split /,\s*/, $depends)
+      {
+        my $firstop = 1;
+        print ", " unless $firstspec;
+        $firstspec = 0;
+
+  OPTION: foreach my $option (split /\|\s*/, $spec)
+          {
+            print " | " unless $firstop;
+            $firstop = 0;
+
+            $option =~ m/^(\S+)\s*(\(\s*(<<|<|<=|=|>=|>>)\s*([^\)]+)\))?/ or
+              die "can't parse dependencies '$depends' (option '$option')";
+
+            my $p = $1;
+            my $op = $3;
+            my $version = $4;
+
+            if (   (! defined ($op) || $op eq "")
+                && (! defined ($version) || $version eq ""))
+              {
+                if ($state->{$p})
+                  {
+                    print "$p (>= $state->{$p})";
+                  }
+# TODO: what about reverse provides (?)
+#                elsif (my $rev_p = reverse_provides ($state, $p))
+#                  {
+#                    print "$p (>= $state->{$rev_p})";
+#                  }
+                else
+                  {
+                    print "$option";
+                  }
+              }
+            else 
+              {
+                print "$option";
+              }
+          }
+      }
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+my $usage = "usage: $0 depends\n";
+
+my $depends = $ARGV[0] or die $usage;
+
+my ($state, $virtual) = get_state ();
+
+my $packages = parse_depends_range ($state, $depends);

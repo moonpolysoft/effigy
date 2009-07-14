@@ -1,0 +1,48 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/get-arch: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/get-arch" "sh/fatal.sh"
+fw_source "package/deb/get-arch" "sh/fw-exec.sh"
+fw_source "package/deb/get-arch" "sh/parse-args.sh"
+fw_source "package/deb/get-arch" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/get-arch" "$@"
+
+validate_args "package/deb/get-arch" "template" "template"
+
+which dpkg >/dev/null 2>/dev/null || {
+  echo "package/deb/get-arch: error: dpkg not installed" 1>&2
+  fatal "package/deb/get-arch"
+}
+
+eval `fw_exec "template/$template/load-config"`
+
+if test "$FW_PACKAGE_ARCHITECTURE_DEPENDENT" = "1" || test -n "$build"
+  then
+    arch=`dpkg --print-installation-architecture`
+  else
+    arch="all"
+  fi
+
+printf "%s" "$arch"

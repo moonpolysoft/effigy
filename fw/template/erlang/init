@@ -1,0 +1,159 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                                init                                 
+# 
+# This is called by the template init method, which is itself called
+# by fw-init when a project is being initialized.  It is intended
+# for creating files in the project that will remain in the project
+# and are owned by the project.  Creation of (symlinks to) files
+# owned by the build method should be done at bootstrap time.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "erlang/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/erlang/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "erlang/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "erlang/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/init" "sh/fatal.sh"
+fw_source "erlang/init" "sh/fw-exec.sh"
+fw_source "erlang/init" "sh/parse-args.sh"
+fw_source "erlang/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+fw_exec "build/automake/init" "$@" || fatal "erlang/init"
+
+parse_args "erlang/init" "$@"
+
+validate_args "erlang/init" "revision" "revision"
+
+for dir in doc src tests
+  do
+    mkdir "$dir" || fatal "erlang/init"
+    fw_exec "revision/$revision/add-dir" "$dir" || fatal "erlang/init"
+
+    for x in Makefile.am.local
+      do
+        fw_find "template/erlang/$dir/$x" file
+        test -z "$file" && fatal "erlang/init"
+        cp -f "$file" "$dir" || fatal "erlang/init"
+        chmod +w "$dir/$x" || fatal "erlang/init"
+      done
+
+    for x in myapp.erl overview.edoc
+      do
+        fw_find "template/erlang/$dir/$x" file
+        test -z "$file" || {
+          cp -f "$file" "$dir" || fatal "erlang/init"
+          chmod +w "$dir/$x" || fatal "erlang/init"
+        }
+      done
+
+    (
+      cd "$dir" &&                                              \
+      fw_exec "revision/$revision/add-files"                    \
+        Makefile.am.local                                       \
+        myapp.erl                                               \
+        overview.edoc &&                                        \
+      fw_exec "revision/$revision/ignore-files"                 \
+        Makefile                                                \
+        '*.in'                                                  \
+        '.*.script_ok'                                          \
+        '*.beam'                                                \
+        '.*.beam_ok'                                            \
+        '.*.erl_ok'                                             \
+        erl_crash.dump                                          \
+    ) || fatal "erlang/init"
+  done
+
+(
+  cd doc &&                                                     \
+  fw_exec "revision/$revision/ignore-files"                     \
+    .run_edoc                                                   \
+    '*.html'                                                    \
+    edoc-info                                                   \
+    erlang.png                                                  \
+    stylesheet.css                                              \
+) || fatal "erlang/init"
+
+(
+  cd src &&                                                     \
+  fw_exec "revision/$revision/ignore-files"                     \
+    '*.app'                                                     \
+    '.dialyzer_ok'                                              \
+) || fatal "erlang/init"
+
+(
+  cd tests &&                                                   \
+  fw_exec "revision/$revision/ignore-files"                     \
+    '*.COVER.out'                                               \
+    '*.test.out'                                                \
+    'module-*'                                                  \
+) || fatal "erlang/init"
+
+(
+  cd fw-pkgin &&
+  perl -i -pe 's/FW_PACKAGE_ARCHITECTURE_DEPENDENT="1"/FW_PACKAGE_ARCHITECTURE_DEPENDENT="0"/' config
+) || fatal "erlang/init"
+
+(
+  cd fw-pkgin &&
+  cat <<'EOD' >> config
+# uncomment and set manually for native hipe compilation
+# ERLCFLAGS="-smp +native +\"{hipe,[o3,verbose]}\""
+
+# uncomment and set manually if autodetection of modules is incorrect
+# FW_ERL_APP_MODULES=""
+
+# uncomment and set manually if autodetection of registered processes is incorrect
+# FW_ERL_APP_REGISTERED=""
+
+# uncomment and set manually if autodetection of start module is incorrect
+# FW_ERL_APP_START_MODULE=""
+
+# uncomment to define start args to the start module.  should be an erlang
+# expression which evaluates to a list.
+# FW_ERL_APP_START_ARGS="[]"
+
+# uncomment if the module line being generated is incorrect and you want 
+# to override it.
+# FW_ERL_APP_MOD_LINE="{ mod, { $FW_ERL_APP_START_MODULE, $FW_ERL_APP_START_ARGS } },"
+
+# uncomment to define the application environment variables. should be an 
+# erlang expression which evaluates to a list.
+# FW_ERL_APP_ENVIRONMENT="[]"
+
+# uncomment to indicate additional OTP applications (besides kernel and stdlib)
+# that this application depends upon, comma-separated
+# FW_ERL_PREREQ_APPLICATIONS_EXTRA=""
+
+# uncomment to add arbitrary extra content to the app file, e.g., an
+# included application directive.
+# FW_ERL_APP_EXTRA=""
+EOD
+) || fatal "erlang/init"

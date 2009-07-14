@@ -1,0 +1,42 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/source-install: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/source-install" "sh/fw-exec.sh"
+fw_source "package/deb/source-install" "sh/parse-args.sh"
+fw_source "package/deb/source-install" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/source-install" "$@"
+
+validate_args "package/deb/source-install" "destdir template" "template"
+
+if which fakeroot >/dev/null 2>/dev/null
+  then
+    file="`perl -e '($_) = @ARGV; s%/[^/]+/?$%/fakeroot.dat%; print $_;' \"$destdir\"`"
+    touch "$file"
+    fakeroot -s "$file" -- \
+      fw-exec "template/$template/source-install" "$@"
+  else
+    echo "package/deb/source-install: warning: fakeroot not installed, file ownership and permissions suspect" 1>&2
+    fw_exec "template/$template/source-install" "$@" 
+  fi

@@ -1,0 +1,5 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+test -d CVS

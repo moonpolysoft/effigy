@@ -1,0 +1,78 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/make-build-package: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/make-build-package" "sh/fatal.sh"
+fw_source "package/deb/make-build-package" "sh/fw-exec.sh"
+fw_source "package/deb/make-build-package" "sh/parse-args.sh"
+fw_source "package/deb/make-build-package" "sh/validate-args.sh"
+
+make_control_files () \
+  {
+    local depends
+
+    mkdir "$destdir"/DEBIAN || fatal "package/deb/make-build-package"
+    chmod 755 "$destdir"/DEBIAN || fatal "package/deb/make-build-package"
+
+    depends=`fw_exec "package/deb/dependency-closure"           \
+                     "$arch"                                    \
+                     "$FW_PACKAGE_BUILD_DEPENDS"                \
+                     "$release"`
+
+    test $? -eq 0 || fatal "package/deb/make-build-package"
+
+    cat <<EOD > "$destdir"/DEBIAN/control
+Package: ${package}-build
+Version: $version
+Architecture: $arch
+Maintainer: $FW_PACKAGE_MAINTAINER
+Description: Build environment for $package $version.
+ This package contains the build environment for $package $version.
+Depends: $depends
+Conflicts: $FW_PACKAGE_BUILD_CONFLICTS
+Provides: 
+
+EOD
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/make-build-package" "$@"
+
+validate_args "package/deb/make-build-package" "destdir outdir release template" "template"
+
+which dpkg >/dev/null 2>/dev/null || {
+  echo "package/deb/make-build-package: error: dpkg not installed" 1>&2
+  fatal "package/deb/make-build-package"
+}
+
+eval `fw_exec "template/$template/load-config"`
+
+package=`fw-exec package/deb/canonicalize-package "${FW_PACKAGE_NAME}"` || fatal package/deb/make-build-package
+version=`fw-exec package/deb/canonicalize-version "${FW_PACKAGE_VERSION}"` || fatal package/deb/make-build-package
+
+arch=`dpkg --print-installation-architecture`
+
+test "$release" = yes || version="${version}-TEST1"
+
+make_control_files
+
+dpkg --build "$destdir" "${outdir}/${package}-build_${version}_${arch}.deb"

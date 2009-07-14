@@ -1,0 +1,122 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "deb/release-package: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/release-package" "sh/fatal.sh"
+fw_source "package/deb/release-package" "sh/fw-exec.sh"
+fw_source "package/deb/release-package" "sh/parse-args.sh"
+fw_source "package/deb/release-package" "sh/validate-args.sh"
+
+make_control_files () \
+  {
+    local buildchangesfile
+    local builddebfile
+    local buildmd5
+    local buildsize
+    local changes
+    local changesfile
+    local date
+    local description
+    local debfile
+    local md5
+    local size
+    local who
+    local where
+
+    changes=`cat ChangeLog | perl -ne 'print " $_";'`
+    date=`date +'%a, %d %b %Y %H:%M:%S %z'`
+    who=`whoami`
+    where=`hostname`
+
+    changesfile="${outdir}/${package}_${version}_${arch}.changes"
+    debfile="${package}_${version}_${arch}.deb"
+    description=`echo "$FW_PACKAGE_DESCRIPTION" | perl -ne 'print " $_";'`
+    md5=`md5sum "$outdir/$debfile" | cut -f1 -d' '`
+    size=`perl -e 'print ((stat ($ARGV[0]))[7])' "$outdir/$debfile"`;
+
+    cat <<EOD > "$changesfile"
+Format: 1.5
+Date: $date
+Architecture: $arch
+Version: $version
+Distribution: -
+Maintainer: $FW_PACKAGE_MAINTAINER
+Changed-By: $who <$who@$where>
+Description: $FW_PACKAGE_SHORT_DESCRIPTION
+$description
+Changes:
+$changes
+Files:
+ $md5 $size - - ${package}_${version}_${arch}.deb
+EOD
+
+    buildchangesfile="${outdir}/${package}-build_${version}_${buildarch}.changes"
+    builddebfile="${package}-build_${version}_${buildarch}.deb"
+    buildmd5=`md5sum "$outdir/$builddebfile" | cut -f1 -d' '`
+    buildsize=`perl -e 'print ((stat ($ARGV[0]))[7])' "$outdir/$builddebfile"`;
+
+    cat <<EOD > "$buildchangesfile"
+Format: 1.5
+Date: $date
+Architecture: $buildarch
+Version: $version
+Distribution: -
+Maintainer: $FW_PACKAGE_MAINTAINER
+Changed-By: $who <$who@$where>
+Description: Build environment for $package $version.
+Changes:
+Files:
+ $buildmd5 $buildsize - - ${package}-build_${version}_${buildarch}.deb
+EOD
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/make-package" "$@"
+
+validate_args "package/deb/make-package" "outdir template" "template"
+
+# which dupload > /dev/null 2>/dev/null || {
+#   echo "deb/release-package: error: dupload not installed" 1>&2
+#   fatal "deb/release-package"
+# }
+
+eval `fw_exec "template/$template/load-config"`
+
+package=`fw-exec package/deb/canonicalize-package "${FW_PACKAGE_NAME}"` || fatal package/deb/release-package
+version=`fw-exec package/deb/canonicalize-version "${FW_PACKAGE_VERSION}"` || fatal package/deb/release-package
+
+if test "$FW_PACKAGE_ARCHITECTURE_DEPENDENT" = "1"
+  then
+    arch=`dpkg --print-installation-architecture`
+  else
+    arch="all"
+  fi
+
+buildarch=`dpkg --print-installation-architecture`
+
+make_control_files
+
+rm -f "$outdir/${package}_${version}_${arch}.upload"
+rm -f "$outdir/${package}-build_${version}_${buildarch}.upload"
+echo $FW_DUPLOAD_ARGS                                                \
+        "$outdir/${package}_${version}_${arch}.changes"                 \
+        "$outdir/${package}-build_${version}_${buildarch}.changes"

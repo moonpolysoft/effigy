@@ -1,0 +1,102 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                              bootstrap                              
+# 
+# This will be called by the template bootstrap function, which is
+# itself called by fw-bootstrap, which is in turn invoked by the
+# bootstrap executable deposited at the top of the source project.
+# It is intended for running any setup activity required prior to
+# building.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "erlang/bootstrap: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/bootstrap" "sh/bootstrap-util.sh"
+fw_source "erlang/bootstrap" "sh/fatal.sh"
+fw_source "erlang/bootstrap" "sh/fw-exec.sh"
+fw_source "erlang/bootstrap" "sh/parse-args.sh"
+fw_source "erlang/bootstrap" "sh/validate-args.sh"
+
+check_alternatives () \
+  {
+    local _check_rv
+    local _check_save
+    local _check_var
+
+    _check_save="$1"
+
+    if test "x$_check_save" = x
+      then
+        echo "erlang/bootstrap: error: bad call to check_alternatives" 1>&2
+        fatal "erlang/bootstrap"
+      fi
+
+    shift
+
+    _check_var="$1"
+    _check_rv=""
+
+    while test "x$_check_var" != x 
+      do
+        _check_rv=`which "$_check_var" 2> /dev/null`
+        if test "x$_check_rv" != x 
+          then
+            break
+          fi
+        shift
+        _check_var="$1"
+      done
+
+    if test "x$_check_rv" = x
+      then
+        echo "erlang/bootstrap: error: can't find alternative for $_check_save" 1>&2
+        fatal "erlang/bootstrap"
+      fi
+
+    eval $_check_save='"$_check_rv"'
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "erlang/bootstrap" "$@"
+
+validate_args "erlang/bootstrap" "" ""
+
+for dir in . doc src tests
+  do
+    for x in Makefile_dot_am            \
+             Makefile.otp               \
+             configure.ac               \
+             fw-erl-app-template.app.in \
+             otp-test-wrapper.sh
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am/.am/;'`
+
+        bootstrap_link_optional "template/erlang/$dir/$x"       \
+                                "$dir"                          \
+                                "$target"                       \
+        || fatal "erlang/bootstrap"
+
+      done
+  done
+
+fw_exec "build/automake/bootstrap" "$@" 

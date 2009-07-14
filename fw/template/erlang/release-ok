@@ -1,0 +1,58 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                             release-ok                              
+# 
+# This is the opportunity for the build type to reject the creation of
+# a release package.  It is intended to identify build modes which are
+# acceptable for creating test packages but not acceptable for release.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "erlang/release-ok: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/release-ok" "sh/fw-exec.sh"
+fw_source "erlang/release-ok" "sh/parse-args.sh"
+fw_source "erlang/release-ok" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+fw_exec "build/automake/release-ok" "$@" || fatal "erlang/release-ok"
+
+parse_args "erlang/release-ok" "$@"
+
+validate_args "erlang/release-ok" "" ""
+
+eval `fw_exec "template/erlang/load-config"` 
+
+test $? = 0 || exit 1
+
+test ! -e "src/${FW_PACKAGE_NAME}.app" ||                       \
+ERL_CRASH_DUMP=/dev/null erl -noshell -noinput -eval '
+  { ok, [ { application, _, _ } ] } = 
+    file:consult (hd (init:get_plain_arguments ())).
+' -s erlang halt -extra "src/${FW_PACKAGE_NAME}.app"            \
+  >/dev/null 2>/dev/null ||                                     \
+{
+  echo "erlang/release-ok: warning: app file 'src/${FW_PACKAGE_NAME}.app' is invalid" 1>&2
+  exit 1
+}
+
+exit 0

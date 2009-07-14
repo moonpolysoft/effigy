@@ -1,0 +1,28 @@
+#! /usr/bin/perl
+
+use File::Basename;
+
+BEGIN {
+  unshift @INC, dirname ($0);
+};
+
+use FwDebPackage;
+use strict;
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+my $usage = "package/deb/check-for-packages: fatal: usage: $0 --arch arch --depends depends --release release\n";
+
+$ARGV[0] eq "--arch" or die $usage;
+my $arch = $ARGV[1] or die $usage;
+$ARGV[2] eq "--depends" or die $usage;
+my $depends = $ARGV[3] or die $usage;
+$ARGV[4] eq "--release" or die $usage;
+my $release = $ARGV[5] or die $usage;
+
+my ($state, $virtual) = get_state ();
+
+print join "\n", parse_depends ($state, $arch, $depends, $release);
+print "\n";

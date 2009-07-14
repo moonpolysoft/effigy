@@ -1,0 +1,55 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/cvs/check-for-tag: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/cvs/check-for-tag" "sh/fatal.sh"
+fw_source "revision/cvs/check-for-tag" "sh/parse-args.sh"
+fw_source "revision/cvs/check-for-tag" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/cvs/check-for-tag" "$@"
+
+validate_args "revision/cvs/check-for-tag" "tag" ""
+
+test -f ".cvsignore" || {
+  echo "revision/cvs/check-for-tag: error: can't find suitable file" 1>&2
+  fatal "revision/cvs/check-for-tag"
+}
+
+prog=`which cvs 2>/dev/null`
+
+test -z "$prog" && {
+  echo "revision/cvs/check-for-tag: error: cvs not installed" 1>&2
+  fatal "revision/cvs/check-for-tag"
+}
+
+cvs status -v .cvsignore > /dev/null || {
+  echo "revision/cvs/check-for-tag: error: cvs invocation failed" 1>&2
+  fatal "revision/cvs/check-for-tag"
+}
+
+if cvs status -v .cvsignore | grep -q "$tag"
+  then
+    exit 1
+  else
+    exit 0
+  fi

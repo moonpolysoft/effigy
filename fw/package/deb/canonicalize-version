@@ -1,0 +1,97 @@
+#! /usr/bin/env perl
+
+#---------------------------------------------------------------------
+#                               Version                               
+# 
+# The version number of a package. The format is:
+# [epoch:]upstream_version[-debian_revision] 
+# ...
+# 
+# http://www.debian.org/doc/debian-policy/ch-controlfields.html
+#---------------------------------------------------------------------
+
+my $version = $ARGV[0] or die "usage: $0 version\n";
+
+my $epoch;
+my $debian_revision;
+my $upstream_version;
+
+my $orig = $version;
+
+if ($version =~ m%^(\d+:)?%)
+  {
+    $epoch = $1;
+    $version = $';
+  }
+
+if ($version =~ m%(-[\w\.\~]+)$%)
+  {
+    $debian_revision = $1;
+    $version = $`;
+  }
+
+$upstream_version = $version;
+
+if ($epoch && $debian_revision)
+  {
+    if ($upstream_version =~ m%[^\w\.\+\~\-\:]%)
+      {
+        my $orig_upstream = $upstream_version;
+
+        $upstream_version =~ s%[^\w\.\+\~\-\:]%\.%g;
+
+        warn "package/deb/canonicalize: warning: ", 
+             "adjusting nonconforming upstream_version ",
+             "'$orig_upstream' of version '$orig' ",
+             "to '$upstream_version'\n";
+      }
+  }
+elsif ($epoch)
+  {
+    if ($upstream_version =~ m%[^\w\.\+\~\:]%)
+      {
+        my $orig_upstream = $upstream_version;
+
+        $upstream_version =~ s%[^\w\.\+\~\:]%\.%g;
+
+        warn "package/deb/canonicalize: warning: ", 
+             "adjusting nonconforming upstream_version ",
+             "'$orig_upstream' of version '$orig' ",
+             "to '$upstream_version'\n";
+      }
+  }
+elsif ($debian_revision)
+  {
+    if ($upstream_version =~ m%[^\w\.\+\~\-]%)
+      {
+        my $orig_upstream = $upstream_version;
+
+        $upstream_version =~ s%[^\w\.\+\~\-]%\.%g;
+
+        warn "package/deb/canonicalize: warning: ", 
+             "adjusting nonconforming upstream_version ",
+             "'$orig_upstream' of version '$orig' ",
+             "to '$upstream_version'\n";
+      }
+  }
+else
+  {
+    if ($upstream_version =~ m%[^\w\.\+\~]%)
+      {
+        my $orig_upstream = $upstream_version;
+
+        $upstream_version =~ s%[^\w\.\+\~]%\.%g;
+
+        warn "package/deb/canonicalize: warning: ", 
+             "adjusting nonconforming upstream_version ",
+             "'$orig_upstream' of version '$orig' ",
+             "to '$upstream_version'\n";
+      }
+  }
+
+if ($upstream_version !~ /^\d/)
+  {
+    die "package/deb/canonicalize-version: fatal: upstream_version component '$upstream_version' of '$orig' needs to start with a digit.\n"
+  }
+
+print "${epoch}${upstream_version}${debian_revision}";

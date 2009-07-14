@@ -1,0 +1,9 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+test -d "$1" || exit 1
+
+test -d "$1"/CVS && exit 0
+
+cvs -Q add "$1"

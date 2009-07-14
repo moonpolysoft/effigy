@@ -1,0 +1,9 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+test -d "$1" || exit 1
+
+test -d "$1"/.svn && exit 0
+
+svn -q add "$1"

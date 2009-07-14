@@ -1,0 +1,56 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                             load-config                             
+# 
+# This is the opportunity for the template to modify the package
+# configuration stored in fw-pkgin/config, e.g., add the template to the
+# build dependencies.
+# 
+# The convention is that every program that wants to load fw-pkgin/config
+# will go through template/$template/load-config
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "fw-template/load-config: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "fw-template/load-config" "sh/fw-exec.sh"
+fw_source "fw-template/load-config" "sh/parse-args.sh"
+fw_source "fw-template/load-config" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "fw-template/load-config" "$@"
+
+validate_args "fw-template/load-config" "" ""
+
+# add framewerk to the template package's dependencies
+
+fw_exec "build/automake/load-config" |                          \
+perl -pe                                                        \
+  'm%FW_PACKAGE_DEPENDS="(.*)"% && do { 
+      $dep = $1;
+      if ($dep !~ m%\bframewerk\b%)
+        {
+          s%FW_PACKAGE_DEPENDS="(.*)"%FW_PACKAGE_DEPENDS="framewerk, $1"%;
+        }
+   };
+   s%, "%"%; 
+   s%#(.*)%%;'

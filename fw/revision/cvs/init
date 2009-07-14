@@ -1,0 +1,48 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/cvs/init: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/cvs/init" "sh/fatal.sh"
+fw_source "revision/cvs/init" "sh/parse-args.sh"
+fw_source "revision/cvs/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/cvs/init" "$@"
+
+validate_args "revision/cvs/init" "name" ""
+
+if test -z "$CVSROOT"
+  then
+    echo "revision/cvs/init: error: CVSROOT environment variable not set" 1>&2
+    fatal "revision/cvs/init"
+  fi
+
+(
+  rm -rf .fw_init_tmp || exit 1
+  mkdir .fw_init_tmp || exit 1
+  cd .fw_init_tmp || exit 1
+  cvs -Q import -m 'imported by framewerk' "$name" framewerk import
+) || fatal "revision/cvs/init"
+
+rm -rf .fw_init_tmp || fatal "revision/cvs/init"
+
+cvs -d "$CVSROOT" -Q checkout "$name"

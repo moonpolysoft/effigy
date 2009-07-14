@@ -1,0 +1,143 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "fw-template/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/fw-template/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "fw-template/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "fw-template/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "fw-template/init" "sh/fatal.sh"
+fw_source "fw-template/init" "sh/fw-exec.sh"
+fw_source "fw-template/init" "sh/parse-args.sh"
+fw_source "fw-template/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+fw_exec "build/automake/init" "$@" || fatal "fw-template/init"
+
+parse_args "fw-template/init" "$@"
+
+validate_args "fw-template/init" "name template_type revision" "revision"
+
+topdir=`pwd`
+
+for dir in tests fw.local fw.local/template fw.local/template/"$template_type"
+  do
+    case "$dir" in
+      fw.local/template/"$template_type")
+        templatedir=fw.local/template/NAME
+        ;;
+      *)
+        templatedir="$dir"
+        ;;
+    esac
+
+    mkdir "$dir" || fatal "fw-template/init"
+    fw_exec "revision/$revision/add-dir" "$dir" || fatal "fw-template/init"
+
+    for x in Makefile.am.local
+      do
+        fw_find "template/fw-template/$templatedir/$x" file
+        test -z "$file" && fatal "fw-template/init"
+        cp -f "$file" "$dir" || fatal "fw-template/init"
+        chmod +w "$dir/$x" || fatal "fw-template/init"
+      done
+
+    for x in bootstrap                  \
+             configure.ac               \
+             init                       \
+             load-config                \
+             make-dist                  \
+             source-install             \
+             release-ok                 \
+             test-template.in           \
+             Makefile_dot_am_dot_am
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am_dot_am/_dot_am/;'`
+        fw_find "template/fw-template/$templatedir/$x" file
+        test -z "$file" || {
+          cp -f "$file" "$dir/$target" || fatal "fw-template/init"
+          chmod +w "$dir/$target" || fatal "fw-template/init"
+          perl -i                                       	        \
+               -pe "s/__TEMPLATE_TYPE__/$template_type/g;
+                    s/__TEMPLATE_TYPE_UC__/\U$template_type\E/g;
+                    s/__PACKAGE_NAME__/$name/g;"                        \
+               "$dir/$target" || fatal "fw-template/init"
+        }
+      done
+
+    for x in bootstrap                  \
+             init                       \
+             load-config                \
+             make-dist                  \
+             source-install             \
+             release-ok
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am_dot_am/_dot_am/;'`
+        test ! -e "$dir/$target" ||                                     \
+        chmod +x "$dir/$target" ||                                      \
+        fatal "fw-template/init"
+      done
+
+    (
+      cd "$dir" &&                                              \
+      fw_exec "revision/$revision/add-files"			\
+	Makefile.am.local					\
+	bootstrap						\
+	configure.ac						\
+	init							\
+	load-config						\
+        make-dist                                               \
+	source-install						\
+	release-ok						\
+	test-template.in					\
+	Makefile_dot_am &&					\
+      fw_exec "revision/$revision/ignore-files"                 \
+        Makefile                                                \
+        Makefile.in                                             \
+        '.*.script_ok'                                          \
+    ) || fatal "fw-template/init"
+  done
+
+(
+  cd tests &&                                                   \
+  fw_exec "revision/$revision/ignore-files"                     \
+    fw.local                                                    \
+    share                                                       \
+    test-template                                               \
+    test-template.out                                           \
+    tmp                                                         \
+) || fatal "fw-template/init"
+
+( 
+  cd fw.local/template &&
+  fw_exec "revision/$revision/ignore-files" NAME
+) || fatal "fw-template/init"
+
+(
+  cd fw-pkgin &&
+  perl -i -pe 's/FW_PACKAGE_ARCHITECTURE_DEPENDENT="1"/FW_PACKAGE_ARCHITECTURE_DEPENDENT="0"/' config
+) || fatal "fw-template/init"

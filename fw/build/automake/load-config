@@ -1,0 +1,53 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                             load-config                             
+# 
+# This is the opportunity for the template to modify the package
+# configuration stored in fw-pkgin/config, e.g., add the template to the
+# build dependencies.
+# 
+# The convention is that every program that wants to load fw-pkgin/config
+# will go through template/$template/load-config
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "build/automake/load-config: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "build/automake/load-config" "sh/fw-exec.sh"
+fw_source "build/automake/load-config" "sh/parse-args.sh"
+fw_source "build/automake/load-config" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/automake/load-config" "$@"
+
+validate_args "build/automake/load-config" "" ""
+
+cat fw-pkgin/config                                             |       \
+    perl -e 'BEGIN { $inq = 0; }'                                       \
+         -e 'while (defined ($_ = getc ()))
+                { 
+                  if ($_ eq "\"") { $inq = 1 - $inq; }
+                  elsif ($inq == 1) { s/\n/ /g; }
+                  print;
+                }'                                              |       \
+    perl -pe 's/"\s+([\w|"])/"$1/g;'                            |       \
+perl -lpe 'chomp; s%FW_PACKAGE_BUILD_DEPENDS="(.*)"%FW_PACKAGE_BUILD_DEPENDS="automaken, autoconf [!darwin-i386], autoconf2.5 [darwin-i386], framewerk, $1"%; s%, "%"%; s%#(.*)%%;'

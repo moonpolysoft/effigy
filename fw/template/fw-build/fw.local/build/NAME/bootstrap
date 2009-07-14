@@ -1,0 +1,41 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                              bootstrap                              
+# 
+# This will be called by the template bootstrap function, which is
+# itself called by fw-bootstrap, which is in turn invoked by the
+# bootstrap executable deposited at the top of the source project.
+# It is intended for running any setup activity required prior to
+# building.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "build/__BUILD_TYPE__/bootstrap: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "build/__BUILD_TYPE__/bootstrap" "sh/bootstrap-util.sh"
+fw_source "build/__BUILD_TYPE__/bootstrap" "sh/parse-args.sh"
+fw_source "build/__BUILD_TYPE__/bootstrap" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/__BUILD_TYPE__/bootstrap" "$@"
+
+validate_args "build/__BUILD_TYPE__/bootstrap" "revision" ""

@@ -1,0 +1,7 @@
+# put whatever (auto)make commands here, they will be included from Makefile.am
+
+TESTS = 	\
+  testmyscript
+
+EXTRA_DIST +=	\
+  testmyscript

@@ -1,0 +1,54 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                                 tag                                 
+# 
+# Recursively tag the current directory with the (version) tag
+# indicated by the --tag argument.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/svn/tag: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/svn/tag" "sh/fatal.sh"
+fw_source "revision/svn/tag" "sh/parse-args.sh"
+fw_source "revision/svn/tag" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/svn/tag" "$@"
+
+validate_args "revision/svn/tag" "tag" ""
+
+eval `fw-exec "template/$template/load-config"`
+
+if test -z "$FW_SUBVERSION_TAG_ROOT"
+  then
+    echo "revision/svn/tag: error: FW_SUBVERSION_TAG_ROOT is not set" 1>&2
+    echo "revision/svn/tag: error: this needs to be set in fw-pkgin/config" 1>&2
+    fatal "revision/svn/tag"
+  fi
+
+svn copy -m "tag '$tag' created by fw-revision-svn" . "$FW_SUBVERSION_TAG_ROOT"/"$tag" || {
+  echo "revision/svn/tag: error: can't create tag '$tag'" 1>&2
+  fatal "revision/svn/tag"
+}
+
+exit 0

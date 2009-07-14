@@ -1,0 +1,52 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                                init                                 
+# 
+# This is called by the template init method, which is itself called
+# by fw-init when a project is being initialized.  It is intended
+# for creating files in the project that will remain in the project
+# and are owned by the project.  Creation of (symlinks to) files
+# owned by the build method should be done at bootstrap time.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "__TEMPLATE_TYPE__/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/__TEMPLATE_TYPE__/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "__TEMPLATE_TYPE__/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "__TEMPLATE_TYPE__/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "__TEMPLATE_TYPE__/init" "sh/fw-exec.sh"
+fw_source "__TEMPLATE_TYPE__/init" "sh/parse-args.sh"
+fw_source "__TEMPLATE_TYPE__/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "__TEMPLATE_TYPE__/init" "$@"
+
+validate_args "__TEMPLATE_TYPE__/init" "" ""
+
+fw_exec "build/automake/init" "$@"

@@ -1,0 +1,122 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                              bootstrap                              
+# 
+# This will be called by the template bootstrap function, which is
+# itself called by fw-bootstrap, which is in turn invoked by the
+# bootstrap executable deposited at the top of the source project.
+# It is intended for running any setup activity required prior to
+# building.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "build/automake/bootstrap: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "build/automake/bootstrap" "sh/bootstrap-util.sh"
+fw_source "build/automake/bootstrap" "sh/fatal.sh"
+fw_source "build/automake/bootstrap" "sh/fw-exec.sh"
+fw_source "build/automake/bootstrap" "sh/parse-args.sh"
+fw_source "build/automake/bootstrap" "sh/validate-args.sh"
+
+check_alternatives () \
+  {
+    local _check_rv
+    local _check_save
+    local _check_var
+
+    _check_save="$1"
+
+    if test "x$_check_save" = x
+      then
+        echo "build/automake/bootstrap: error: bad call to check_alternatives" 1>&2
+        fatal "build/automake/bootstrap"
+      fi
+
+    shift
+
+    _check_var="$1"
+    _check_rv=""
+
+    while test "x$_check_var" != x 
+      do
+        _check_rv=`which "$_check_var" 2> /dev/null`
+        if test "x$_check_rv" != x 
+          then
+            break
+          fi
+        shift
+        _check_var="$1"
+      done
+
+    if test "x$_check_rv" = x
+      then
+        echo "build/automake/bootstrap: error: can't find alternative for $_check_save" 1>&2
+        fatal "build/automake/bootstrap"
+      fi
+
+    eval $_check_save='"$_check_rv"'
+  }
+
+maybe_append_directory () \
+  {
+    if test -d "$1"
+      then
+        eval $2=\"\$$2 -I $1\"
+      fi
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/automake/bootstrap" "$@"
+
+validate_args "build/automake/bootstrap" "revision template" ""
+
+check_alternatives myautomake automake automake19 automake-1.9 
+check_alternatives myautoconf autoconf autoconf259 autoconf-2.59 autoconf257 
+check_alternatives myaclocal aclocal aclocal19 
+
+for dir in fw-pkgin .
+  do
+    for x in build configure.ac Makefile_dot_am 
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am/.am/;'`
+
+        bootstrap_link_optional "build/automake/$dir/$x"        \
+                                "$dir"                          \
+                                "$target"                       \
+        || fatal "automake/bootstrap"
+      done
+  done
+
+maybe_append_directory "fw.local/m4" acargs
+maybe_append_directory "${FW_ROOT}/share/fw.local/m4" acargs
+maybe_append_directory "fw/m4" acargs
+maybe_append_directory "${FW_ROOT}/share/fw/m4" acargs
+maybe_append_directory "/usr/local/share/aclocal" acargs
+
+fw_exec "build/automake/build-ac-init" "$template" "$acargs" "$@" || fatal "automake/bootstrap"
+
+"$myaclocal" $acargs || fatal "automake/bootstrap"
+
+test -z "$autoheader" || "$autoheader" || fatal "automake/bootstrap"
+
+AUTOCONF="$myautoconf" "$myautomake" -a --foreign || fatal "automake/bootstrap"
+"$myautoconf" || fatal "automake/bootstrap"

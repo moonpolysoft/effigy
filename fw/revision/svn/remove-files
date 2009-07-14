@@ -1,0 +1,16 @@
+#! /bin/sh
+
+test -z "${FW_TRACE}" || set -x
+
+svn info "$@" >/dev/null 2>/dev/null || exit 1
+
+files=`
+  svn info "$@" 2>/dev/null |                                           \
+  perl -ne 'chomp; m/^Path: (.*?)$/ && do
+              {
+                my $x = $1;
+                $x =~ s/(\s)/\134$1/g;
+                print "$x ";
+              }'`
+
+test -z "$files" || svn -q remove --force $files

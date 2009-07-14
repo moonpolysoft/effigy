@@ -1,0 +1,50 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "script/bootstrap: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "script/bootstrap" "sh/bootstrap-util.sh"
+fw_source "script/bootstrap" "sh/fatal.sh"
+fw_source "script/bootstrap" "sh/fw-exec.sh"
+fw_source "script/bootstrap" "sh/parse-args.sh"
+fw_source "script/bootstrap" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "script/bootstrap" "$@"
+
+validate_args "script/bootstrap" "revision" ""
+
+topdir=`pwd`
+
+for dir in bin tests .
+  do
+    for x in Makefile_dot_am configure.ac
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am/.am/;'`
+
+        bootstrap_link_optional "template/script/$dir/$x"               \
+                                "$dir"                                  \
+                                "$target"                               \
+        || fatal "script/bootstrap"
+      done
+  done
+
+fw_exec "build/automake/bootstrap" "$@"

@@ -1,0 +1,12 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                               detect                                
+# 
+# Check and see whether the current directory is subject to this
+# type of revision control.
+#---------------------------------------------------------------------
+
+test -z "${FW_TRACE}" || set -x
+
+test -d .svn

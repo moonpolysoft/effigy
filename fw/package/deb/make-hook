@@ -1,0 +1,221 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/make-hook: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/make-hook" "sh/fatal.sh"
+fw_source "package/deb/make-hook" "sh/fw-exec.sh"
+fw_source "package/deb/make-hook" "sh/parse-args.sh"
+fw_source "package/deb/make-hook" "sh/validate-args.sh"
+
+make_post_install () {
+  cat <<EOD
+#! /bin/sh
+
+canonicalize () {
+  perl -e '(\$_) = @ARGV; s/-TEST1\$//; print \$_' -- "\$1"
+}
+
+$preamble
+
+operation="\$1"
+
+case "\$operation" in
+  configure)
+    most_recently_configured_version="\$2"
+    canon_most_recently_configured_version="\`canonicalize \"\$most_recently_configured_version\"\`"
+    $configure
+    ;;
+  abort-upgrade)
+    new_version="\$2"
+    canon_new_version="\`canonicalize \"\$new_version\"\`"
+    $abort_upgrade
+    ;;
+  abort-remove)
+    $abort_remove
+    ;;
+  *)
+    ;;
+esac
+
+$postamble
+
+exit 0
+EOD
+}
+
+make_post_remove () {
+  cat <<EOD
+#! /bin/sh
+
+case "\$1" in
+  upgrade)
+    exit 1 # defer to new package's version
+    ;;
+  *)
+    ;;
+esac
+
+canonicalize () {
+  perl -e '(\$_) = @ARGV; s/-TEST1\$//; print \$_' -- "\$1"
+}
+
+$preamble
+
+operation="\$1"
+
+case "\$operation" in
+  remove)
+    $remove
+    ;;
+  purge)
+    $purge
+    ;;
+  failed-upgrade)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $upgrade
+    ;;
+  abort-install)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $abort_install
+    ;;
+  abort-upgrade)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $abort_upgrade
+    ;;
+  disappear)
+    $remove
+    ;;
+  *)
+    ;;
+esac
+
+$postamble
+
+exit 0
+EOD
+}
+
+make_pre_install () {
+  cat <<EOD
+#! /bin/sh
+
+canonicalize () {
+  perl -e '(\$_) = @ARGV; s/-TEST1\$//; print \$_' -- "\$1"
+}
+
+$preamble
+
+operation="\$1"
+
+case "\$operation" in
+  install)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $install
+    ;;
+  upgrade)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $upgrade
+    ;;
+  abort-upgrade)
+    new_version="\$2"
+    canon_new_version="\`canonicalize \"\$new_version\"\`"
+    $abort_upgrade
+    ;;
+  *)
+    ;;
+esac
+
+$postamble
+
+exit 0
+EOD
+}
+
+make_pre_remove () {
+  cat <<EOD
+#! /bin/sh
+
+case "\$1" in
+  upgrade)
+    exit 1 # defer to new package's version
+    ;;
+  *)
+    ;;
+esac
+
+canonicalize () {
+  perl -e '(\$_) = @ARGV; s/-TEST1\$//; print \$_' -- "\$1"
+}
+
+$preamble
+
+operation="\$1"
+
+case "\$operation" in
+  remove)
+    $remove
+    ;;
+  failed-upgrade)
+    old_version="\$2"
+    canon_old_version="\`canonicalize \"\$old_version\"\`"
+    $upgrade
+    ;;
+  deconfigure)
+    $deconfigure
+    ;;
+  *)
+    ;;
+esac
+
+$postamble
+
+exit 0
+EOD
+}
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/make-hook" "$@"
+
+validate_args "package/deb/make-hook" "hook" ""
+
+case "$hook" in
+  post-install)
+    make_post_install
+    ;;
+  post-remove)
+    make_post_remove
+    ;;
+  pre-install)
+    make_pre_install
+    ;;
+  pre-remove)
+    make_pre_remove
+    ;;
+  *)
+    echo "package/deb/make-hook: warning: unsupported hook '$hook'" 1>&2
+    exit 0
+esac

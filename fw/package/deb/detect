@@ -1,0 +1,7 @@
+#! /bin/sh
+
+which dpkg-query >/dev/null 2>/dev/null
+
+test $? = 0 || exit 1
+
+dpkg-query --show '--showformat=${Status}' framewerk 2>/dev/null | grep '^install ok' >/dev/null

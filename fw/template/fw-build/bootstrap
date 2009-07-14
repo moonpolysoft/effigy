@@ -1,0 +1,57 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "fw-build/bootstrap: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "fw-build/bootstrap" "sh/bootstrap-util.sh"
+fw_source "fw-build/bootstrap" "sh/fatal.sh"
+fw_source "fw-build/bootstrap" "sh/fw-exec.sh"
+fw_source "fw-build/bootstrap" "sh/parse-args.sh"
+fw_source "fw-build/bootstrap" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "fw-build/bootstrap" "$@"
+
+validate_args "fw-build/bootstrap" "build_type revision" ""
+
+topdir=`pwd`
+
+(
+  cd "fw.local/build" && {
+    test -h NAME || ln -sf "$build_type" NAME
+  }
+) || fatal "fw-build/bootstrap"
+
+for dir in fw.local fw.local/build fw.local/build/NAME .
+  do
+    for x in Makefile_dot_am configure.ac
+      do
+        target=`echo "$x" | perl -pe 's/_dot_am/.am/;'`
+
+        bootstrap_link_optional "template/fw-build/$dir/$x"     \
+                                "$dir"                          \
+                                "$target"                       \
+        || fatal "fw-build/bootstrap"
+      done
+  done
+
+fw_exec "build/automake/bootstrap" "$@"
+

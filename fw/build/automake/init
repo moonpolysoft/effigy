@@ -1,0 +1,100 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "automake/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/automake/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "automake/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "automake/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "script/init" "sh/fatal.sh"
+fw_source "script/init" "sh/fw-exec.sh"
+fw_source "script/init" "sh/parse-args.sh"
+fw_source "script/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/automake/init" "$@"
+
+validate_args "build/automake/init" "revision" "revision"
+
+for x in AUTHORS 				\
+  	 NEWS 					\
+	 README 				\
+	 ChangeLog 				\
+	 Makefile.am.local 			\
+	 configure.ac.local
+  do
+    fw_find "build/automake/$x" file
+    cp -f "$file" . || fatal "automake/init"
+    chmod +w "$x" || fatal "automake/init"
+  done
+
+fw_exec "revision/$revision/add-files" AUTHORS                  \
+                                       NEWS                     \
+                                       README 	                \
+                                       ChangeLog                \
+                                       Makefile.am.local        \
+                                       configure.ac.local       \
+|| fatal "automake/init"
+
+fw_exec "revision/$revision/ignore-files"       \
+  '*.pc'                                        \
+  '*.tgz'                                       \
+  '*.tar.gz'                                    \
+  '.package'                                    \
+  Makefile                                      \
+  Makefile.in                                   \
+  ac-init.generated                             \
+  aclocal.m4                                    \
+  autom4te.cache                                \
+  config.guess                                  \
+  config.log                                    \
+  config.status                                 \
+  configure                                     \
+  fw-pkgout                                     \
+  fw-pkgtmp                                     \
+  missing                                       \
+  install-sh                                    \
+|| fatal "automake/init"
+
+(
+  cd fw-pkgin || exit 1
+
+  for x in Makefile.am.local
+    do
+      fw_find "build/automake/fw-pkgin/$x" file
+      cp -f "$file" . || exit 1
+      chmod +w "$x" || exit 1
+    done
+
+  fw_exec "revision/$revision/add-files" Makefile.am.local || exit 1
+
+  fw_exec "revision/$revision/ignore-files"     \
+    Makefile                                    \
+    Makefile.in                                 \
+    '.*.script_ok'                              \
+  || exit 1
+) || fatal "automake/init"

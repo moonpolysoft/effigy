@@ -1,0 +1,41 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                             release-ok                              
+# 
+# This is the opportunity for the build type to reject the creation of
+# a release package.  It is intended to identify build modes which are
+# acceptable for creating test packages but not acceptable for release.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/release-ok: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/release-ok" "sh/fw-exec.sh"
+fw_source "package/deb/release-ok" "sh/parse-args.sh"
+fw_source "package/deb/release-ok" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/release-ok" "$@"
+
+validate_args "package/deb/release-ok" "template" "template"
+
+fw_exec "template/$template/release-ok" "$@" 

@@ -1,0 +1,29 @@
+SUBDIRS =
+
+templatedir = $(prefix)/share/fw/template/@FW_BUILD_BUILD_TYPE@
+
+dist_template_SCRIPTS =			\
+  bootstrap				\
+  build					\
+  init					\
+  make-dist				\
+  release-ok				\
+  source-install
+
+install-data-hook:
+	find "$(DESTDIR)$(templatedir)" -type f | xargs chmod -w
+
+noinst_DATA =				\
+  $(dist_template_SCRIPTS:%=.%.script_ok)
+
+CLEANFILES =
+
+MAINTAINERCLEANFILES = 			\
+  Makefile.am				\
+  Makefile.in
+
+EXTRA_DIST =
+
+include $(top_srcdir)/fw/build/automake/check-shell.am
+include $(top_srcdir)/fw/build/automake/gnu-make-check.am
+include $(top_srcdir)/fw.local/build/NAME/Makefile.am.local

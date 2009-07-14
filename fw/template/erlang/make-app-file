@@ -1,0 +1,138 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                            make-app-file                            
+# 
+# Creates the Erlang application file by scanning the source directory.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "erlang/make-app-file: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/erlang/make-app-file$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "erlang/make-app-file: fatal: can't determine FW_ROOT" 1>&2
+  echo "erlang/make-app-file: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/load-config" "sh/fw-exec.sh"
+fw_source "erlang/load-config" "sh/parse-args.sh"
+fw_source "erlang/load-config" "sh/validate-args.sh"
+
+maybe_prefix_comma () \
+  {
+    local val
+
+    eval val=\"\$$1\"
+
+    case "$val" in
+      "")
+        ;;
+      ,*)
+        ;;
+      *)
+        eval $1=\", \$$1\"
+        ;;
+    esac
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "erlang/make-app-file" "$@"
+
+validate_args "erlang/make-app-file" "top" ""
+
+cd "$top" || exit 1
+
+if test -d fw/bin
+  then
+    PATH="`pwd`/fw/bin:$PATH"
+    export PATH
+  fi
+
+eval `fw_exec "template/erlang/load-config"` 
+
+test $? = 0 || exit 1
+
+fw_find template/erlang/find-modules.sh find_modules
+
+test -n "$find_modules" || fatal "template/erlang/make-app-file: missing find-modules.sh"
+
+tmpdir=make_app_file_$$
+
+rm -rf "$tmpdir"
+modules=`find src -name '*.erl' -print | \
+         xargs "$find_modules" "$tmpdir" | \
+         perl -ne 'chomp;
+                   next if $seen{$_}++;
+                   print ", " if $f;
+                   print $_;
+                   $f = 1;'`
+
+FW_ERL_APP_MODULES=${FW_ERL_APP_MODULES-"$modules"}
+
+fw_find template/erlang/find-registered.sh find_registered
+
+test -n "$find_registered" || fatal "template/erlang/make-app-file: missing find-registered.sh"
+
+rm -rf "$tmpdir"
+registered=`find src -name '*.erl' -print | \
+            xargs "$find_registered" "$tmpdir" | \
+            perl -ne 'chomp;
+                      next if $seen{$_}++;
+                      print ", " if $f;
+                      print $_;
+                      $f = 1;'`
+
+FW_ERL_APP_REGISTERED=${FW_ERL_APP_REGISTERED-"$registered"}
+
+fw_find template/erlang/find-start-module.sh find_start
+
+test -n "$find_start" || fatal "template/erlang/make-app-file: missing find-start-module.sh"
+
+rm -rf "$tmpdir"
+start_module=`find src -name '*.erl' -print | \
+              xargs "$find_start" "$tmpdir"`
+
+FW_ERL_APP_START_MODULE=${FW_ERL_APP_START_MODULE-"$start_module"}
+
+FW_ERL_APP_START_ARGS=${FW_ERL_APP_START_ARGS-"[]"}
+
+if test -n "$FW_ERL_APP_START_MODULE"
+  then
+    modline="{ mod, { $FW_ERL_APP_START_MODULE, $FW_ERL_APP_START_ARGS } },"
+  else
+    modline=""
+  fi
+
+FW_ERL_APP_MOD_LINE=${FW_ERL_APP_MOD_LINE-"$modline"}
+
+FW_ERL_APP_ENVIRONMENT=${FW_ERL_APP_ENVIRONMENT-"[]"}
+
+maybe_prefix_comma FW_ERL_PREREQ_APPLICATIONS
+maybe_prefix_comma FW_ERL_PREREQ_APPLICATIONS_EXTRA
+maybe_prefix_comma FW_ERL_APP_EXTRA
+
+eval `perl -ne 'while (m/@(\S+)@/g) { print "export $1; "; }' src/fw-erl-app-template.app`
+
+perl -pe 's/@(\S+)@/$ENV{$1}/g;' src/fw-erl-app-template.app > "src/${FW_PACKAGE_NAME}.app"

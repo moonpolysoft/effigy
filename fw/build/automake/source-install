@@ -1,0 +1,54 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           source-install                            
+# 
+# This method is invoked by the template source-install method, which itself
+# is invoked by fw-package when a package is being created.  It is intended
+# to install all the files of the project (binary, not source) into
+# the indicated directory.  Anything appearing in the filesystem tree
+# underneath destdir will end up in the package.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "build/automake/source-install: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "build/automake/source-install" "sh/parse-args.sh"
+fw_source "build/automake/source-install" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/automake/source-install" "$@"
+
+validate_args "build/automake/source-install" "destdir" ""
+
+if test -z "$MAKE"
+  then
+    gmake=`which gmake`
+
+    if test $? = 0 
+      then
+        MAKE=gmake
+      else
+        MAKE=make
+      fi
+  fi
+
+"$MAKE" -s DESTDIR="$destdir" install >/dev/null

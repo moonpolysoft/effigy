@@ -1,0 +1,45 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                              make-dist                              
+# 
+# This method intended to create a distribution (source) tarball from 
+# which the project can be built on another system.  Typically, 
+# the template does some incremental work and then dispatches to the
+# build method of the same name. Importantly, framewerk should not be 
+# required to be installed in order to build from a distribution tarball.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "__TEMPLATE_TYPE__/make-dist: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "__TEMPLATE_TYPE__/make-dist" "sh/fw-exec.sh"
+#fw_source "__TEMPLATE_TYPE__/make-dist" "sh/parse-args.sh"
+#fw_source "__TEMPLATE_TYPE__/make-dist" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+#parse_args "__TEMPLATE_TYPE__/make-dist" "$@"
+
+#validate_args "__TEMPLATE_TYPE__/make-dist" "destdir distballname" ""
+
+test -z "${FW_TRACE}" || set -x
+
+fw_exec "build/automake/make-dist" "$@" 

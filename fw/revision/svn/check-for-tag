@@ -1,0 +1,60 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                            check-for-tag                            
+# 
+# Given a tag (--tag), determine if the tag exists or not.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/cvs/check-for-tag: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/cvs/check-for-tag" "sh/fatal.sh"
+fw_source "revision/cvs/check-for-tag" "sh/parse-args.sh"
+fw_source "revision/cvs/check-for-tag" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/cvs/check-for-tag" "$@"
+
+validate_args "revision/cvs/check-for-tag" "tag" ""
+
+eval `fw-exec "template/$template/load-config"`
+
+if test -z "$FW_SUBVERSION_TAG_ROOT"
+  then
+    echo "revision/svn/check-for-tag: error: FW_SUBVERSION_TAG_ROOT is not set" 1>&2
+    echo "revision/svn/check-for-tag: error: this needs to be set in fw-pkgin/config" 1>&2
+    fatal "revision/svn/check-for-tag"
+  fi
+
+prog="`which svn 2>/dev/null`"
+
+test -z "$prog" && {
+  echo "revision/svn/check-for-tag: fatal: svn not installed" 1>&2
+  exit 1
+}
+
+if svn list "$FW_SUBVERSION_TAG_ROOT" | grep -q "$tag" 
+  then
+    exit 1
+  else
+    exit 0
+  fi

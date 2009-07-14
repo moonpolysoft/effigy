@@ -1,0 +1,30 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                            ignore-files                             
+# 
+# Add the filenames supplied as arguments to the set of files
+# ignored by the version control system.  Should be idempotent.
+#---------------------------------------------------------------------
+
+test -z "${FW_TRACE}" || set -x
+
+prog="`which svn 2>/dev/null`"
+
+test -z "$prog" && {
+  echo "revision/svn/check-up-to-date: fatal: svn not installed" 1>&2
+  exit 1
+}
+
+svn propget svn:ignore . > /dev/null || {
+  echo "revision/svn/check-up-to-date: error: svn invocation failed" 1>&2
+  fatal "revision/svn/check-up-to-date"
+}
+
+newignore=`
+( 
+  svn propget svn:ignore .
+  for x in "$@"; do echo "$x"; done
+) | sort | uniq`
+
+svn propset svn:ignore "$newignore" . > /dev/null

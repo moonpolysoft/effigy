@@ -1,0 +1,59 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                              make-dist                              
+# 
+# This method is invoked by the template make-dist method. It is intended
+# to create a distribution (source) tarball from which the project can be
+# built on another system.  Importantly, framewerk should not be required
+# to be installed in order to build from a distribution tarball.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "build/automake/make-dist: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "build/automake/make-dist" "sh/fw-exec.sh"
+fw_source "build/automake/make-dist" "sh/parse-args.sh"
+fw_source "build/automake/make-dist" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "build/automake/make-dist" "$@"
+
+validate_args "build/automake/make-dist" "destdir distballname template" "template"
+
+if test -z "$MAKE"
+  then
+    gmake=`which gmake`
+
+    if test $? = 0 
+      then
+        MAKE=gmake
+      else
+        MAKE=make
+      fi
+  fi
+
+eval `fw_exec "template/$template/load-config"`
+
+test $? = 0 || exit 1
+
+"$MAKE" -s dist >/dev/null || exit 1
+mv "${FW_PACKAGE_NAME}-${FW_PACKAGE_VERSION}.tar.gz" "$destdir/$distballname"

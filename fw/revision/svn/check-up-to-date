@@ -1,0 +1,29 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                          check-up-to-date                           
+# 
+# Takes no arguments.  Determine whether the project starting from
+# the current directory is up-to-date with the repository.
+#---------------------------------------------------------------------
+
+test -z "${FW_TRACE}" || set -x
+
+prog="`which svn 2>/dev/null`"
+
+test -z "$prog" && {
+  echo "revision/svn/check-up-to-date: fatal: svn not installed" 1>&2
+  exit 1
+}
+
+svn status > /dev/null || {
+  echo "revision/svn/check-up-to-date: error: svn invocation failed" 1>&2
+  fatal "revision/svn/check-up-to-date"
+}
+
+if svn status | grep -e '^[ACDMX\?\!\~]'
+  then
+    exit 1
+  else
+    exit 0
+  fi

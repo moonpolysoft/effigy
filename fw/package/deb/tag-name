@@ -1,0 +1,52 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "package/deb/tag-name: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "package/deb/tag-name" "sh/fatal.sh"
+fw_source "package/deb/tag-name" "sh/fw-exec.sh"
+fw_source "package/deb/tag-name" "sh/parse-args.sh"
+fw_source "package/deb/tag-name" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "package/deb/tag-name" "$@"
+
+validate_args "package/deb/tag-name" "template" "template"
+
+which dpkg >/dev/null 2>/dev/null || {
+  echo "package/deb/tag-name: error: dpkg not installed" 1>&2
+  fatal "package/deb/tag-name"
+}
+
+eval `fw_exec "template/$template/load-config"`
+
+version=`echo "$FW_PACKAGE_VERSION" | perl -pe 'chomp; s%\W%_%g;'`
+
+if test "$FW_PACKAGE_ARCHITECTURE_DEPENDENT" = "1"
+  then
+    arch=`dpkg --print-installation-architecture`
+  else
+    arch="all"
+  fi
+
+nicearch=`echo "$arch" | perl -pe 'chomp; s%\W%_%g;'`
+
+printf "%s" "deb-$version-$nicearch"

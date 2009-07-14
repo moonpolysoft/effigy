@@ -1,0 +1,40 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "revision/cvs/tag: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "revision/cvs/tag" "sh/fatal.sh"
+fw_source "revision/cvs/tag" "sh/parse-args.sh"
+fw_source "revision/cvs/tag" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "revision/cvs/tag" "$@"
+
+validate_args "revision/cvs/tag" "tag" ""
+
+prog=`which cvs 2>/dev/null`
+
+test -z "$prog" && {
+  echo "revision/cvs/tag: fatal: cvs not installed" 1>&2
+  fatal "revision/cvs/tag"
+}
+
+cvs -Q tag "$tag"

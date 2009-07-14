@@ -1,0 +1,83 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "script/init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%fw/template/script/init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "script/init: fatal: can't determine FW_ROOT" 1>&2
+  echo "script/init: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "script/init" "sh/fatal.sh"
+fw_source "script/init" "sh/fw-exec.sh"
+fw_source "script/init" "sh/parse-args.sh"
+fw_source "script/init" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+fw_exec "build/automake/init" "$@" || fatal "script/init"
+
+parse_args "script/init" "$@"
+
+validate_args "script/init" "revision" "revision"
+
+for dir in bin tests
+  do
+    mkdir "$dir" || fatal "script/init"
+    fw_exec "revision/$revision/add-dir" "$dir" || fatal "script/init"
+
+    for x in Makefile.am.local
+      do
+        fw_find "template/script/$dir/$x" file
+        test -z "$file" && fatal "script/init"
+        cp -f "$file" "$dir" || fatal "script/init"
+        chmod +w "$dir/$x" || fatal "script/init"
+      done
+
+    for x in myscript testmyscript
+      do
+        fw_find "template/script/$dir/$x" file
+        test -z "$file" || {
+          cp -f "$file" "$dir" || fatal "script/init"
+          chmod +wx "$dir/$x" || fatal "script/init"
+        }
+      done
+
+    (
+      cd "$dir" &&                                              \
+      fw_exec "revision/$revision/add-files"			\
+	Makefile.am.local					\
+	myscript						\
+	testmyscript &&						\
+      fw_exec "revision/$revision/ignore-files"                 \
+        Makefile                                                \
+        Makefile.in                                             \
+        '.*.script_ok'                                          \
+    ) || fatal "script/init"
+  done
+
+(
+  cd fw-pkgin &&
+  perl -i -pe 's/FW_PACKAGE_ARCHITECTURE_DEPENDENT="1"/FW_PACKAGE_ARCHITECTURE_DEPENDENT="0"/' config
+) || fatal "script/init"

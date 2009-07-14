@@ -1,0 +1,81 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                          make-post-install                           
+# 
+# rewrite package hooks to integrate with erlrc.
+#---------------------------------------------------------------------
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "erlang/make-post-install: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines                               
+#---------------------------------------------------------------------
+
+fw_source "erlang/make-post-install" "sh/fw-exec.sh"
+fw_source "erlang/make-post-install" "sh/parse-args.sh"
+fw_source "erlang/make-post-install" "sh/validate-args.sh"
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "erlang/make-post-install" "$@"
+
+validate_args "erlang/make-post-install" "destdir erlrc libexecdir package" "package"
+
+test "x$erlrc" = x0 || {
+  eval `fw_exec "template/erlang/load-config"`
+  
+  hookdir="${libexecdir}/fw/$FW_PACKAGE_NAME-$FW_PACKAGE_VERSION"
+  
+  test -d "${destdir}/${hookdir}" || fatal "erlang/make-post-install"
+  
+  test -x "${destdir}/${hookdir}/post-install" && 
+  mv "${destdir}/${hookdir}/post-install" \
+     "${destdir}/${hookdir}/post-install.orig"
+  
+  fw_exec "package/$package/make-hook" --hook post-install        \
+    --configure "
+    which erlrc-start >/dev/null 2>/dev/null
+    
+    test \$? -ne 0 || \
+    erlrc-start \"$FW_PACKAGE_NAME\" \"$FW_PACKAGE_VERSION\" || \
+    exit 1
+"                                                               \
+    --abort_upgrade "
+    which erlrc-downgrade >/dev/null 2>/dev/null
+
+    test \$? -ne 0 || \
+    erlrc-downgrade \"$FW_PACKAGE_NAME\" \"$FW_PACKAGE_VERSION\" \"\$canon_new_version\" || \
+    exit 1
+"                                                               \
+    --abort_remove "
+    which erlrc-start >/dev/null 2>/dev/null
+    
+    test \$? -ne 0 || \
+    erlrc-start \"$FW_PACKAGE_NAME\" \"$FW_PACKAGE_VERSION\" || \
+    exit 1
+"                                                               \
+    --postamble "
+if test -x \"${hookdir}/post-install.orig\"
+  then
+    set -e
+    \"${hookdir}/post-install.orig\" \"\$@\" 
+    set +e
+  fi
+" > "${destdir}/${hookdir}/post-install" &&                     \
+  chmod +x "${destdir}/${hookdir}/post-install"
+}

@@ -15,6 +15,7 @@
 -export([mock/1, proxy_call/2, proxy_call/3, expects/4, expects/5, verify_and_stop/1, verify/1, stub_proxy_call/3, stop/1]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include("common.hrl").
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -26,7 +27,7 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% @spec mock() -> {ok,#mock} | ignore | {error,Error}
+%% @spec mock(Module) -> {ok,Pid} | ignore | {error,Error}
 %% @doc Starts the server
 %% @end 
 %%--------------------------------------------------------------------
@@ -57,10 +58,13 @@ stub_proxy_call(Module, Function, Args) ->
     {Ref, Answer} -> Answer
   end.
   
+expects(Module, Function, Args, Ret) ->
+  gen_server:call(mod_to_name(Module), {expects, Function, Args, Ret, 1}).
+
 %% @spec expects(Module::atom(), 
 %%               Function::atom(), 
-%%               Args::fun/1,
-%%               Ret::fun/2 | term()
+%%               Args::fun(ArgTuple),
+%%               Ret::fun(ArgTuple, Times) | term(),
 %%               Times:: {at_least, integer()} | infinite | {no_more_than, integer()} | integer()) -> term()
 %% @doc Sets the expectation that Function of Module will be called during a test with Args.
 %%      Args should be a fun predicate that will return true or false whether or not the argument
@@ -69,9 +73,6 @@ stub_proxy_call(Module, Function, Args) ->
 %%      Ret is either a value to return or a fun of arity 2 to be evaluated in response to a proxied
 %%      call.  The first argument is the actual args from the call, the second is the call count starting
 %%      with 1.
-expects(Module, Function, Args, Ret) ->
-  gen_server:call(mod_to_name(Module), {expects, Function, Args, Ret, 1}).
-
 expects(Module, Function, Args, Ret, Times) ->
   gen_server:call(mod_to_name(Module), {expects, Function, Args, Ret, Times}).
   

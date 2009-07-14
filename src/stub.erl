@@ -21,7 +21,7 @@
          terminate/2, code_change/3]).
 
 -include_lib("eunit/include/eunit.hrl").
--include("../include/common.hrl").
+-include("common.hrl").
 
 -record(state, {old_code, module, stub, times}).
 
@@ -29,7 +29,6 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
 %% @doc Starts the server
 %% @end 
 %%--------------------------------------------------------------------

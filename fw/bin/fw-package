@@ -1,0 +1,176 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "fw-package: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%bin//?fw-package$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" && fws="${FW_ROOT}/share/fw/sh/fw-find.sh"
+test -f "fw/sh/fw-find.sh" && fws="fw/sh/fw-find.sh"
+test -f "fw.local/sh/fw-find.sh" && fws="fw.local/sh/fw-find.sh"
+test ! -z "$fws" || {
+  echo "fw-package: fatal: can't locate fw-find.sh" 1>&2
+  exit 1
+}
+
+. "$fws"
+
+#---------------------------------------------------------------------
+#                              routines
+#---------------------------------------------------------------------
+
+fw_source "fw-package" "sh/fatal.sh"
+fw_source "fw-package" "sh/parse-args.sh"
+fw_source "fw-package" "sh/validate-args.sh"
+fw_source "fw-package" "sh/fw-exec.sh"
+
+check_up_to_date () \
+  {
+    fw_exec "revision/$revision/check-up-to-date" || {
+      echo "fw-package: warning: local project is not up to date" 1>&2
+
+      test "$release" != yes || {
+        echo "fw-package: error: cannot release package in this state" 1>&2
+        fatal "fw-package"
+      }
+    }
+  }
+
+get_tag_name () \
+  {
+    eval $1=\`fw_exec \"package/\$package/tag-name\" --template \"$template\"\`
+  }
+
+check_for_tag () \
+  {
+    local tag
+
+    tag="$1"
+    shift
+
+    fw_exec "revision/$revision/check-for-tag" "$@" --tag "$tag" || {
+      echo "fw-package: warning: tag '$tag' already exists" 1>&2
+      echo "fw-package: warning: probably this package has already been released" 1>&2
+      test "$release" != yes || {
+        echo "fw-package: error: cannot release package in this state" 1>&2
+        fatal "fw-package"
+      }
+    }
+  }
+
+source_install () \
+  {
+    fw_exec "package/$package/source-install" "$@" || {
+      echo "fw-package: error: source install of package failed" 1>&2
+      fatal "fw-package"
+    }
+  }
+
+check_package_is_ok () \
+  {
+    fw_exec "package/$package/release-ok" "$@" || {
+      test "$release" != yes || {
+        echo "fw-package: error: cannot release package in this state" 1>&2
+        fatal "fw-package"
+      }
+
+      echo "fw-package: warning: cannot release package in this state" 1>&2
+    }
+  }
+
+make_package () \
+  {
+    fw_exec "package/$package/make-package" "$@" || {
+      echo "fw-package: error: make-package failed" 1>&2
+      fatal "fw-package"
+    }
+  }
+
+make_build_package () \
+  {
+    fw_exec "package/$package/make-build-package" "$@" || {
+      echo "fw-package: error: make-build-package failed" 1>&2
+      fatal "fw-package"
+    }
+  }
+
+make_tag () \
+  {
+    test "$release" != yes || fw_exec "revision/$revision/tag" "$@" || {
+      echo "fw-package: error: creating tag '$1' failed" 1>&2
+      fatal "fw-package"
+    }
+  }
+
+release_package () \
+  {
+    test "$release" != yes ||                                   \
+    fw_exec "package/$package/release-package" "$@" || {
+      echo "fw-package: error: release-package failed" 1>&2
+      fatal "fw-package"
+    }
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "fw-package" "$@"
+
+test -z "$help" || {
+  echo "usage: fw-package [ --trace ] --package package --revision revision --release [yes|no]" 1>&2
+  exit 0
+}
+
+validate_args "fw-package"                                      \
+              "build package release revision template"         \
+              "build package revision template"
+
+FW_PACKAGE_TYPE="$package"
+export FW_PACKAGE_TYPE
+
+fw_exec "template/$template/load-config" >/dev/null || fatal "fw-package"
+
+check_up_to_date 
+
+get_tag_name tag
+
+check_for_tag "$tag" "$@" 
+
+destdir="`pwd`/fw-pkgtmp/destdir"
+outdir="`pwd`/fw-pkgout"
+
+test ! -d fw-pkgtmp || rm -rf fw-pkgtmp || fatal "fw-package"
+mkdir -p "$destdir" || fatal "fw-package"
+fw_exec "revision/$revision/ignore-files" fw-pkgtmp || fatal "fw-package"
+
+test -d "fw-pkgout" || mkdir "fw-pkgout" || fatal "fw-package"
+fw_exec "revision/$revision/ignore-files" fw-pkgout || fatal "fw-package"
+
+source_install "$@" --destdir "$destdir"
+
+check_package_is_ok "$@" --destdir "$destdir"
+
+make_package "$@" --destdir "$destdir" --outdir "$outdir"
+
+test ! -d fw-pkgtmp || rm -rf fw-pkgtmp || fatal "fw-package"
+
+mkdir -p "$destdir" || fatal "fw-package"
+
+make_build_package "$@" --destdir "$destdir" --outdir "$outdir"
+
+test ! -d fw-pkgtmp || rm -rf fw-pkgtmp || fatal "fw-package"
+
+make_tag "$@" --tag "$tag"
+
+release_package "$@" --outdir "$outdir"

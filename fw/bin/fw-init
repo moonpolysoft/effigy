@@ -1,0 +1,167 @@
+#! /bin/sh
+
+#---------------------------------------------------------------------
+#                           chicken and egg                           
+#---------------------------------------------------------------------
+
+which perl >/dev/null 2>/dev/null || {
+  echo "fw-init: fatal: can't locate perl" 1>&2
+  exit 1
+}
+
+if test -z "${FW_ROOT}"
+  then
+    FW_ROOT=`echo "$0" | perl -pe 's%bin//?fw-init$%%;'`
+    export FW_ROOT
+  fi
+
+test -f "${FW_ROOT}/share/fw/sh/fw-find.sh" || {
+  echo "fw-init: fatal: can't determine FW_ROOT" 1>&2
+  echo "fw-init; fatal: please set the environment variable" 1>&2
+  exit 1
+}
+
+. "${FW_ROOT}/share/fw/sh/fw-find.sh"
+
+#---------------------------------------------------------------------
+#                              routines
+#---------------------------------------------------------------------
+
+fw_source "fw-init" "sh/fatal.sh"
+fw_source "fw-init" "sh/fw-exec.sh"
+fw_source "fw-init" "sh/parse-args.sh"
+fw_source "fw-init" "sh/validate-args.sh"
+
+base_initialize () \
+  {
+    local maintainer
+    local who
+    local where
+
+    fw_exec "revision/$revision/init" "$@" || fatal "fw-init"
+    cd "$name" || fatal "fw-init"
+
+    ln -sf "${FW_ROOT}/share/fw" . || fatal "fw-init" 
+    fw_exec "revision/$revision/ignore-files" fw || fatal "fw-init"
+
+    test -z "$localize" || test ! -e "${FW_ROOT}/share/fw.local" || (
+      dir=`pwd`
+      cd ${FW_ROOT}/share/
+      find "fw.local" -print | cpio -pvd "$dir"
+    ) || fatal "fw-init"
+
+    cat > bootstrap <<EOD || fatal "fw-init"
+#! /bin/sh
+
+if test -d fw/bin
+  then
+    PATH="\`pwd\`/fw/bin:\$PATH"
+    export PATH
+  fi
+
+fwb=\`which fw-bootstrap\`
+
+if test -z "\$fwb"
+  then
+    echo "bootstrap: fatal: fw-bootstrap not installed or not in PATH" 1>&2
+    exit 1
+  fi
+
+"\$fwb" --fw_version "0.1.30" $@ "\$@"
+EOD
+
+    chmod +x bootstrap || fatal "fw-init"
+    fw_exec "revision/$revision/add-files" bootstrap || fatal "fw-init"
+
+    if test -z "$FW_PACKAGE_DEFAULT_MAINTAINER"
+      then
+        who=`whoami`
+        where=`hostname`
+        maintainer="${who} <${who}@$where>"
+      else
+        maintainer="$FW_PACKAGE_DEFAULT_MAINTAINER"
+      fi
+
+    mkdir fw-pkgin || fatal "fw-init"
+    fw_exec "revision/$revision/add-dir" fw-pkgin || fatal "fw-init"
+    (
+      cd fw-pkgin || exit 1
+      cat <<EOD > config || exit 1
+# The FW_PACKAGE_MAINTAINER field is populated with the 
+# environment variable FW_PACKAGE_DEFAULT_MAINTAINER if non-empty
+
+FW_PACKAGE_NAME="$name"
+FW_PACKAGE_VERSION="0.0.0"
+FW_PACKAGE_MAINTAINER="$maintainer"
+FW_PACKAGE_SHORT_DESCRIPTION="A short description."
+FW_PACKAGE_DESCRIPTION=\`cat README\`
+FW_PACKAGE_ARCHITECTURE_DEPENDENT="1"
+
+# Dependency information.  The native syntax corresponds to Debian,
+# http://www.debian.org/doc/debian-policy/ch-relationships.html
+# Section 7.1 "Syntax of Relationship Fields"
+# 
+# For other packaging systems, the syntax is translated for you.
+
+FW_PACKAGE_DEPENDS=""
+FW_PACKAGE_CONFLICTS=""
+FW_PACKAGE_PROVIDES=""
+FW_PACKAGE_REPLACES=""
+FW_PACKAGE_SUGGESTS=""
+
+FW_PACKAGE_BUILD_DEPENDS=""
+FW_PACKAGE_BUILD_CONFLICTS=""
+EOD
+
+      for x in post-install                           \
+               post-remove                            \
+               pre-install                            \
+               pre-remove                             \
+               start                                  \
+               stop
+        do
+          fw_find "build/automake/fw-pkgin/$x" file
+	  test -z "$file" && exit 1
+          cp -f "$file" . || exit 1
+          chmod +w "$x" || exit 1
+        done
+
+      fw_exec "revision/$revision/add-files" config             \
+                                             post-install       \
+                                             post-remove        \
+                                             pre-install        \
+                                             pre-remove         \
+                                             start              \
+                                             stop 
+    ) || fatal "fw-init"
+
+    fw_find "revision/$revision/init-fw-pkgin-config" file
+    test -z "$file" || {
+      "$file" "$@" || fatal "fw-init"
+    }
+  }
+
+run_init () \
+  {
+    fw_exec "template/$template/init" "$@" || {
+      echo "fw-init: error: init failed" 1>&2
+      fatal "fw-init"
+    }
+  }
+
+#---------------------------------------------------------------------
+#                                main                                 
+#---------------------------------------------------------------------
+
+parse_args "fw-init" "$@"
+
+test -z "$help" || {
+  echo "usage: fw-init [ --trace ] --name name --revision revision --template template [ template specific args ... ] " 1>&2
+  exit 0
+}
+
+validate_args "fw-init" "name revision template" "revision template"
+
+base_initialize "$@"
+
+run_init "$@"

@@ -76,9 +76,6 @@ expects(Module, Function, Args, Ret) ->
 expects(Module, Function, Args, Ret, Times) ->
   gen_server:call(mod_to_name(Module), {expects, Function, Args, Ret, Times}).
   
-stub(Module, Function, Args, Ret) ->
-  gen_server:call(mod_to_name(Module), {stub, Function, Args, Ret}).
-  
 verify_and_stop(Module) ->
   verify(Module),
   stop(Module).
@@ -254,16 +251,6 @@ get_exports(Info, Acc) ->
       get_exports(ModInfo, Acc ++ lists:filter(fun({module_info, _}) -> false; (_) -> true end, Exports));
     _ -> Acc
   end.
-  
-stub_function_loop(Fun) ->
-  receive
-    {Ref, Pid, Args} ->
-      ?debugFmt("received {~p,~p,~p}", [Ref, Pid, Args]),
-      Ret = (catch Fun(Args) ),
-      ?debugFmt("sending {~p,~p}", [Ref,Ret]),
-      Pid ! {Ref, Ret},
-      stub_function_loop(Fun)
-  end.
 
 % Function -> {function, Lineno, Name, Arity, [Clauses]}
 % Clause -> {clause, Lineno, [Variables], [Guards], [Expressions]}
@@ -296,22 +283,4 @@ generate_expression(M, F, Module, Name, Arity) ->
 
 mod_to_name(Module) ->
   list_to_atom(lists:concat([mock_, Module])).
-  
-replace_function(FF, Forms) ->
-  replace_function(FF, Forms, []).
-  
-replace_function(FF, [], Ret) ->
-  [FF|lists:reverse(Ret)];
-  
-replace_function({function,_,Name,Arity,Clauses}, [{function,Line,Name,Arity,_}|Forms], Ret) ->
-  lists:reverse(Ret) ++ [{function,Line,Name,Arity,Clauses}|Forms];
-  
-replace_function(FF, [FD|Forms], Ret) ->
-  replace_function(FF, Forms, [FD|Ret]).
-  
-  
-  
-  
-  
-  
   
